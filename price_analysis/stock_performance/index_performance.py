@@ -77,38 +77,34 @@ def get_dataframe(index):
     return df
 
 def fetch_all_performance_data(df, start_date, end_date):
-    performance_data = []
     symbols = df['Symbol'].tolist()
+    stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker')
     
-    try:
-        stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker', progress=False)
-    except Exception as e:
-        st.error(f"Error fetching stock data: {e}")
-        return performance_data
-    
-    for symbol in symbols:
+    performance_data = []
+    for _, row in df.iterrows():
+        symbol = row['Symbol']
         try:
             hist = stock_data[symbol]
             if hist.empty:
-                continue
+                raise ValueError(f"No data for {symbol}")
             start_price = hist['Close'].iloc[0]
             end_price = hist['Close'].iloc[-1]
             percent_change = (end_price - start_price) / start_price * 100
-            industry = df.loc[df['Symbol'] == symbol, 'Industry'].values[0]
-            performance_data.append((symbol, percent_change, industry))
+            if not pd.isna(percent_change):
+                performance_data.append((symbol, row['Company'], percent_change, row['Industry']))
         except Exception as e:
-            print(f"Error processing data for {symbol}: {e}")
-            continue
+            print(f"Error with {symbol}: {e}")
 
-    performance_data.sort(key=lambda x: x[1], reverse=True)
+    performance_data.sort(key=lambda x: x[2], reverse=True)
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
-    if end_date is None:
+    if not end_date:
         end_date = datetime.now()
     
     if start_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
+        end_date = datetime.strptime(end_date, '%Y-%m-%d')
     else:
         if period == 'ytd':
             start_date = datetime(end_date.year, 1, 1)
@@ -126,27 +122,22 @@ def display_index_performance(df, period, top_n, bottom_n, start_date, end_date)
                 '20y': 365*20
             }[period]
             start_date = end_date - timedelta(days=delta)
-            print("Start and end dates:", start_date, end_date)
     
     performance_data = fetch_all_performance_data(df, start_date, end_date)
     
-    # Top performing stocks
+    # Display top performing stocks
     st.write(f"Top {top_n} Stocks:")
-    top_performers = performance_data[:top_n]
-    top_df = pd.DataFrame(top_performers, columns=["Symbol", "Percent Change", "Industry"])
-    top_df["Percent Change"] = top_df["Percent Change"].apply(lambda x: f"{x:.1f}%")
-    st.dataframe(top_df.style.applymap(lambda x: 'color: green' if isinstance(x, str) and x.endswith('%') else '', subset=['Percent Change']))
-
-    # Bottom performing stocks
+    for symbol, company, performance, industry in performance_data[:top_n]:
+        st.write(f"{symbol} ({company} - {industry}): {performance:.1f}%")
+    
+    # Display bottom performing stocks
     st.write(f"\nBottom {bottom_n} Stocks:")
-    bottom_performers = performance_data[-bottom_n:]
-    bottom_df = pd.DataFrame(bottom_performers, columns=["Symbol", "Percent Change", "Industry"])
-    bottom_df["Percent Change"] = bottom_df["Percent Change"].apply(lambda x: f"{x:.1f}%")
-    st.dataframe(bottom_df.style.applymap(lambda x: 'color: red' if isinstance(x, str) and x.endswith('%') else '', subset=['Percent Change']))
-
+    for symbol, company, performance, industry in performance_data[-bottom_n:]:
+        st.write(f"{symbol} ({company} - {industry}): {performance:.1f}%")
+    
     # Display number of companies per industry in top and bottom lists
-    top_industries = pd.Series([industry for _, _, industry in performance_data[:top_n]]).value_counts()
-    bottom_industries = pd.Series([industry for _, _, industry in performance_data[-bottom_n:]]).value_counts()
+    top_industries = pd.Series([industry for _, _, _, industry in performance_data[:top_n]]).value_counts()
+    bottom_industries = pd.Series([industry for _, _, _, industry in performance_data[-bottom_n:]]).value_counts()
     
     st.write("Top Industries:")
     st.write(top_industries)

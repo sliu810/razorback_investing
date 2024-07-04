@@ -92,12 +92,14 @@ def fetch_all_performance_data(df, start_date, end_date):
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
-    end_date = datetime.now()
-    
+    if not end_date:
+        end_date = datetime.now()
+        
     if start_date and end_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
     else:
+        end_date = datetime.now()
         if period == 'ytd':
             start_date = datetime(end_date.year, 1, 1)
         else:

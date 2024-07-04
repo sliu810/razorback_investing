@@ -104,11 +104,11 @@ def fetch_all_performance_data(df, start_date, end_date):
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
-    end_date = datetime.now()
+    if end_date is None:
+        end_date = datetime.now()
     
-    if start_date and end_date:
+    if start_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
-        end_date = datetime.strptime(end_date, '%Y-%m-%d')
     else:
         if period == 'ytd':
             start_date = datetime(end_date.year, 1, 1)
@@ -130,14 +130,20 @@ def display_index_performance(df, period, top_n, bottom_n, start_date, end_date)
     
     performance_data = fetch_all_performance_data(df, start_date, end_date)
     
-    print(f"Top {top_n} Stocks:")
-    for symbol, performance, industry in performance_data[:top_n]:
-        print(f"{symbol} ({industry}): {performance:.1f}%")
-    
-    print(f"\nBottom {bottom_n} Stocks:")
-    for symbol, performance, industry in performance_data[-bottom_n:]:
-        print(f"{symbol} ({industry}): {performance:.1f}%")
-    
+    # Top performing stocks
+    st.write(f"Top {top_n} Stocks:")
+    top_performers = performance_data[:top_n]
+    top_df = pd.DataFrame(top_performers, columns=["Symbol", "Percent Change", "Industry"])
+    top_df["Percent Change"] = top_df["Percent Change"].apply(lambda x: f"{x:.1f}%")
+    st.dataframe(top_df.style.applymap(lambda x: 'color: green' if isinstance(x, str) and x.endswith('%') else '', subset=['Percent Change']))
+
+    # Bottom performing stocks
+    st.write(f"\nBottom {bottom_n} Stocks:")
+    bottom_performers = performance_data[-bottom_n:]
+    bottom_df = pd.DataFrame(bottom_performers, columns=["Symbol", "Percent Change", "Industry"])
+    bottom_df["Percent Change"] = bottom_df["Percent Change"].apply(lambda x: f"{x:.1f}%")
+    st.dataframe(bottom_df.style.applymap(lambda x: 'color: red' if isinstance(x, str) and x.endswith('%') else '', subset=['Percent Change']))
+
     # Display number of companies per industry in top and bottom lists
     top_industries = pd.Series([industry for _, _, industry in performance_data[:top_n]]).value_counts()
     bottom_industries = pd.Series([industry for _, _, industry in performance_data[-bottom_n:]]).value_counts()

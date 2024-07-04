@@ -7,7 +7,7 @@ from index_performance import get_and_display_index_performance
 st.set_page_config(page_title='Stock and Index Performance Analysis', layout='wide')
 
 # Main title
-st.title('📈 Stock and Index Performance Analysis')
+st.title('Stock and Index Performance Analysis')
 
 # Section 1: Stock Performance
 st.markdown("<hr style='border:1px solid gray'>", unsafe_allow_html=True)

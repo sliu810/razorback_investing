@@ -78,7 +78,11 @@ def get_dataframe(index):
 
 def fetch_all_performance_data(df, start_date, end_date):
     symbols = df['Symbol'].tolist()
-    stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker')
+    try:
+        stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker', progress=False)
+    except Exception as e:
+        st.write(f"Error fetching data: {e}")
+        return []
     
     performance_data = []
     for _, row in df.iterrows():
@@ -124,6 +128,9 @@ def display_index_performance(df, period, top_n, bottom_n, start_date, end_date)
             start_date = end_date - timedelta(days=delta)
     
     performance_data = fetch_all_performance_data(df, start_date, end_date)
+    
+    # Filter out entries with NaN values
+    performance_data = [entry for entry in performance_data if not pd.isna(entry[2])]
     
     # Display top performing stocks
     st.write(f"Top {top_n} Stocks:")

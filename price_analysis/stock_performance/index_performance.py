@@ -77,31 +77,39 @@ def get_dataframe(index):
     return df
 
 def fetch_all_performance_data(df, start_date, end_date):
-    symbols = df['Symbol'].tolist()
-    stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker')
-    
     performance_data = []
-    for _, row in df.iterrows():
-        symbol = row['Symbol']
-        if symbol not in stock_data:
-            continue
-        hist = stock_data[symbol]
-        if hist.empty:
-            continue
-        start_price = hist['Close'].iloc[0]
-        end_price = hist['Close'].iloc[-1]
-        percent_change = round((end_price - start_price) / start_price * 100, 1)
-        performance_data.append((symbol, row['Company'], f"{percent_change}%", row['Industry']))
+    symbols = df['Symbol'].tolist()
     
-    performance_data.sort(key=lambda x: float(x[2].rstrip('%')), reverse=True)
+    try:
+        stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker', progress=False)
+    except Exception as e:
+        st.error(f"Error fetching stock data: {e}")
+        return performance_data
+    
+    for symbol in symbols:
+        try:
+            hist = stock_data[symbol]
+            if hist.empty:
+                continue
+            start_price = hist['Close'].iloc[0]
+            end_price = hist['Close'].iloc[-1]
+            percent_change = (end_price - start_price) / start_price * 100
+            industry = df.loc[df['Symbol'] == symbol, 'Industry'].values[0]
+            performance_data.append((symbol, percent_change, industry))
+        except Exception as e:
+            print(f"Error processing data for {symbol}: {e}")
+            continue
+
+    performance_data.sort(key=lambda x: x[1], reverse=True)
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
+    end_date = datetime.now()
+    
     if start_date and end_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
     else:
-        end_date = datetime.now()
         if period == 'ytd':
             start_date = datetime(end_date.year, 1, 1)
         else:
@@ -122,17 +130,17 @@ def display_index_performance(df, period, top_n, bottom_n, start_date, end_date)
     
     performance_data = fetch_all_performance_data(df, start_date, end_date)
     
-    st.write(f"**Top {top_n} Stocks:**", unsafe_allow_html=True)
-    for symbol, company, performance, industry in performance_data[:top_n]:
-        st.write(f"{symbol} ({company} - {industry}): **{performance}**", unsafe_allow_html=True)
+    print(f"Top {top_n} Stocks:")
+    for symbol, performance, industry in performance_data[:top_n]:
+        print(f"{symbol} ({industry}): {performance:.1f}%")
     
-    st.write(f"\n**Bottom {bottom_n} Stocks:**", unsafe_allow_html=True)
-    for symbol, company, performance, industry in performance_data[-bottom_n:]:
-        st.write(f"{symbol} ({company} - {industry}): **{performance}**", unsafe_allow_html=True)
+    print(f"\nBottom {bottom_n} Stocks:")
+    for symbol, performance, industry in performance_data[-bottom_n:]:
+        print(f"{symbol} ({industry}): {performance:.1f}%")
     
     # Display number of companies per industry in top and bottom lists
-    top_industries = pd.Series([industry for _, _, _, industry in performance_data[:top_n]]).value_counts()
-    bottom_industries = pd.Series([industry for _, _, _, industry in performance_data[-bottom_n:]]).value_counts()
+    top_industries = pd.Series([industry for _, _, industry in performance_data[:top_n]]).value_counts()
+    bottom_industries = pd.Series([industry for _, _, industry in performance_data[-bottom_n:]]).value_counts()
     
     st.write("Top Industries:")
     st.write(top_industries)

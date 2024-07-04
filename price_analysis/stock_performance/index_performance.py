@@ -77,24 +77,26 @@ def get_dataframe(index):
     return df
 
 def fetch_all_performance_data(df, start_date, end_date):
+    symbols = df['Symbol'].tolist()
+    stock_data = yf.download(symbols, start=start_date, end=end_date, group_by='ticker')
+    
     performance_data = []
     for _, row in df.iterrows():
         symbol = row['Symbol']
-        stock = yf.Ticker(symbol)
-        hist = stock.history(start=start_date, end=end_date)
+        if symbol not in stock_data:
+            continue
+        hist = stock_data[symbol]
         if hist.empty:
             continue
         start_price = hist['Close'].iloc[0]
         end_price = hist['Close'].iloc[-1]
         percent_change = round((end_price - start_price) / start_price * 100, 1)
         performance_data.append((symbol, row['Company'], f"{percent_change}%", row['Industry']))
+    
     performance_data.sort(key=lambda x: float(x[2].rstrip('%')), reverse=True)
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
-    if not end_date:
-        end_date = datetime.now()
-        
     if start_date and end_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')

@@ -4,11 +4,15 @@ from stock_performance import get_and_print_stock_performance
 from index_performance import get_and_display_index_performance
 
 # Streamlit app
-st.title('Stock and Index Performance Analysis')
+st.set_page_config(page_title='Stock and Index Performance Analysis', layout='wide')
+
+# Main title
+st.title('📈 Stock and Index Performance Analysis')
 
 # Section 1: Stock Performance
-st.header('Stock Performance Analysis')
-st.markdown("---")  # Horizontal rule for separation
+st.markdown("<hr style='border:1px solid gray'>", unsafe_allow_html=True)
+st.header('📊 Stock Performance Analysis')
+st.markdown("Analyze the performance of individual stocks over various periods.")
 
 with st.expander("Stock Performance Analysis"):
     symbols = st.text_input('Enter stock symbols separated by commas (e.g., AAPL, MSFT, TSLA, BTC-USD, TQQQ)', 'AAPL, MSFT, TSLA, BTC-USD, TQQQ')
@@ -34,8 +38,9 @@ with st.expander("Stock Performance Analysis"):
         get_and_print_stock_performance(symbols_list, period=period, start_date=start_date_str, end_date=end_date_str, normalize=normalize)
 
 # Section 2: Index Performance
-st.header('Index Performance Analysis')
-st.markdown("---")  # Horizontal rule for separation
+st.markdown("<hr style='border:1px solid gray'>", unsafe_allow_html=True)
+st.header('📈 Index Performance Analysis')
+st.markdown("Analyze the performance of major stock indices and their components.")
 
 with st.expander("Index Performance Analysis"):
     index = st.selectbox('Select index', ['QQQ', 'SPX', 'DOW', 'IWM'])
@@ -59,3 +64,6 @@ with st.expander("Index Performance Analysis"):
         index_start_date_str = index_start_date.strftime('%Y-%m-%d') if index_start_date else None
         index_end_date_str = index_end_date.strftime('%Y-%m-%d') if index_end_date else None
         get_and_display_index_performance(index, period=index_period, top_n=top_n, bottom_n=bottom_n, start_date=index_start_date_str, end_date=index_end_date_str)
+
+st.markdown("<hr style='border:1px solid gray'>", unsafe_allow_html=True)
+st.markdown("### Powered by Streamlit")

@@ -27,7 +27,7 @@ def fetch_components_slickcharts(index):
     
     data = []
     headers = []
-
+    
     for i, row in enumerate(table.find_all('tr')):
         cols = [ele.text.strip() for ele in row.find_all('td')]
         if i == 0:
@@ -86,17 +86,18 @@ def fetch_all_performance_data(df, start_date, end_date):
             continue
         start_price = hist['Close'].iloc[0]
         end_price = hist['Close'].iloc[-1]
-        percent_change = (end_price - start_price) / start_price * 100
-        performance_data.append((symbol, row['Company'], percent_change, row['Industry']))
-    performance_data.sort(key=lambda x: x[2], reverse=True)
+        percent_change = round((end_price - start_price) / start_price * 100, 1)
+        performance_data.append((symbol, row['Company'], f"{percent_change}%", row['Industry']))
+    performance_data.sort(key=lambda x: float(x[2].rstrip('%')), reverse=True)
     return performance_data
 
 def display_index_performance(df, period, top_n, bottom_n, start_date, end_date):
+    end_date = datetime.now()
+    
     if start_date and end_date:
         start_date = datetime.strptime(start_date, '%Y-%m-%d')
         end_date = datetime.strptime(end_date, '%Y-%m-%d')
     else:
-        end_date = datetime.now()
         if period == 'ytd':
             start_date = datetime(end_date.year, 1, 1)
         else:
@@ -117,15 +118,13 @@ def display_index_performance(df, period, top_n, bottom_n, start_date, end_date)
     
     performance_data = fetch_all_performance_data(df, start_date, end_date)
     
-    # Display top performing stocks
-    st.write(f"Top {top_n} Stocks:")
-    top_table = pd.DataFrame(performance_data[:top_n], columns=['Symbol', 'Company', 'Percent Change', 'Industry'])
-    st.write(top_table)
+    st.write(f"**Top {top_n} Stocks:**", unsafe_allow_html=True)
+    for symbol, company, performance, industry in performance_data[:top_n]:
+        st.write(f"{symbol} ({company} - {industry}): **{performance}**", unsafe_allow_html=True)
     
-    # Display bottom performing stocks
-    st.write(f"\nBottom {bottom_n} Stocks:")
-    bottom_table = pd.DataFrame(performance_data[-bottom_n:], columns=['Symbol', 'Company', 'Percent Change', 'Industry'])
-    st.write(bottom_table)
+    st.write(f"\n**Bottom {bottom_n} Stocks:**", unsafe_allow_html=True)
+    for symbol, company, performance, industry in performance_data[-bottom_n:]:
+        st.write(f"{symbol} ({company} - {industry}): **{performance}**", unsafe_allow_html=True)
     
     # Display number of companies per industry in top and bottom lists
     top_industries = pd.Series([industry for _, _, _, industry in performance_data[:top_n]]).value_counts()

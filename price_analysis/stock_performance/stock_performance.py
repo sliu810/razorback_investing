@@ -64,9 +64,8 @@ def print_stock_performance(results):
         return
 
     df = pd.DataFrame(results)
-    df['percent_change'] = df['percent_change'].apply(lambda x: f"{x:.1f}%")
     df = df.sort_values(by='percent_change', ascending=False)
-    df['percent_change'] = df['percent_change'].apply(lambda x: f"<span style='color: {'green' if float(x[:-1]) > 0 else 'red'}'>{x}</span>")
+    df['percent_change'] = df['percent_change'].apply(lambda x: f"<span style='color: {'green' if x > 0 else 'red'}'>{x:.1f}%</span>")
     st.write(df[['symbol', 'start_date', 'end_date', 'start_price', 'end_price', 'percent_change']].to_html(escape=False, index=False), unsafe_allow_html=True)
 
 def plot_stock_performance_interactive(results, price_type='Close', normalize=True):

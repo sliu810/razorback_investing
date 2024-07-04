@@ -23,7 +23,7 @@ def plot_stock_with_demark(data, ticker):
 import streamlit as st
 import pandas as pd  # Ensure pandas is imported
 from data_retrieval import fetch_stock_data
-from demark_indicator import calculate_td_sequential
+from technical_analysis.demark import calculate_td_sequential
 
 def main():
     st.title('Stock Technical Analysis with DeMark Indicator')

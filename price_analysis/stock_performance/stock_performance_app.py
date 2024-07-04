@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objs as go
 import streamlit as st
+from collections import Counter
 
 def get_date_from_period(period):
     end_date = datetime.now()
@@ -34,9 +35,16 @@ def get_stock_performance(symbol, start_date, end_date=None):
     hist = stock.history(start=start_date, end=end_date)
     
     if hist.empty:
-        st.write(f"No data available for {symbol} in the specified period.")
+        st.warning(f"No data available for {symbol} in the specified period.")
         return None
-
+    
+    start_date_in_data = hist.index[0].strftime('%Y-%m-%d')
+    end_date_in_data = hist.index[-1].strftime('%Y-%m-%d')
+    
+    if start_date > start_date_in_data or end_date < end_date_in_data:
+        st.warning(f"Data for {symbol} is only available from {start_date_in_data} to {end_date_in_data}. Please adjust your date range.")
+        return None
+    
     start_price = round(hist['Close'].iloc[0], 1)
     end_price = round(hist['Close'].iloc[-1], 1)
     percent_change = round(((end_price - start_price) / start_price) * 100, 1)
@@ -103,6 +111,91 @@ def get_and_print_stock_performance(symbols, period=None, start_date=None, end_d
     print_stock_performance(results)
     plot_stock_performance_interactive(results, price_type='Close', normalize=normalize)
 
+def fetch_components_slickcharts(index):
+    base_url = "https://www.slickcharts.com/"
+    index_map = {
+        'QQQ': 'nasdaq100',
+        'SPX': 'sp500',
+        'DOW': 'dowjones'
+    }
+    if index.upper() not in index_map:
+        raise ValueError("Index must be either 'QQQ', 'SPX', or 'DOW'")
+    
+    url = f"{base_url}{index_map[index.upper()]}"
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3"
+    }
+    response = requests.get(url, headers=headers)
+    soup = BeautifulSoup(response.content, "html.parser")
+    table = soup.find('table')
+    
+    data = []
+    headers = []
+    
+    for i, row in enumerate(table.find_all('tr')):
+        cols = [ele.text.strip() for ele in row.find_all('td')]
+        if i == 0:
+            headers = [ele.text.strip() for ele in row.find_all('th')]
+        else:
+            if len(cols) > 1:  # Ensure there is data in the row
+                data.append(cols)
+    
+    df = pd.DataFrame(data, columns=headers)
+    return df
+
+def fetch_industry_info(symbol):
+    try:
+        stock = yf.Ticker(symbol)
+        info = stock.info
+        industry = info.get("industry", "N/A")
+        print(f"Fetched industry for {symbol}: {industry}")
+        return industry
+    except Exception as e:
+        print(f"Error fetching data for {symbol}: {e}")
+        return "N/A"
+
+def append_industry_info(df):
+    industries = []
+    for _, row in df.iterrows():
+        industry = fetch_industry_info(row['Symbol'])
+        industries.append(industry)
+    
+    df['Industry'] = industries
+    return df
+
+def display_top_bottom_stocks(df, period, top_n, bottom_n, start_date=None, end_date=None):
+    end_date = datetime.now().strftime('%Y-%m-%d') if end_date is None else end_date
+    
+    if start_date:
+        start_date = start_date
+    else:
+        if period == 'ytd':
+            start_date = datetime.now().replace(month=1, day=1).strftime('%Y-%m-%d')
+        else:
+            start_date, _ = get_date_from_period(period)
+    
+    performance_data = fetch_all_performance_data(df, start_date, end_date)
+    
+    print(f"Top {top_n} Stocks:")
+    for symbol, company, performance, industry in performance_data[:top_n]:
+        print(f"{symbol} ({company} - {industry}): {performance*100:.1f}%")
+    
+    print(f"\nBottom {bottom_n} Stocks:")
+    for symbol, company, performance, industry in performance_data[-bottom_n:]:
+        print(f"{symbol} ({company} - {industry}): {performance*100:.1f}%")
+    
+    # Display industry stats
+    industry_counter_top = Counter([industry for _, _, _, industry in performance_data[:top_n]])
+    industry_counter_bottom = Counter([industry for _, _, _, industry in performance_data[-bottom_n:]])
+
+    print("\nIndustry Distribution in Top Performers:")
+    for industry, count in industry_counter_top.items():
+        print(f"{industry}: {count} companies")
+
+    print("\nIndustry Distribution in Bottom Performers:")
+    for industry, count in industry_counter_bottom.items():
+        print(f"{industry}: {count} companies")
+
 # Streamlit app
 st.title('Stock Performance Analysis')
 symbols = st.text_input('Enter stock symbols separated by commas (e.g., AAPL, MSFT, TSLA, BTC-USD, TQQQ)', 'AAPL, MSFT, TSLA, BTC-USD, TQQQ')
@@ -124,5 +217,3 @@ normalize = st.checkbox('Normalize stock prices', value=True)
 if st.button('Analyze'):
     symbols_list = [symbol.strip() for symbol in symbols.split(',')]
     start_date_str = start_date.strftime('%Y-%m-%d') if start_date else None
-    end_date_str = end_date.strftime('%Y-%m-%d') if end_date else None
-    get_and_print_stock_performance(symbols_list, period=period, start_date=start_date_str, end_date=end_date_str, normalize=normalize)

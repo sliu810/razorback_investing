@@ -1,0 +1,2 @@
+# Ignore secrets in the news directory
+news/client_secret_*.json

@@ -220,6 +220,78 @@ def get_html_content(df):
     
     return html_content
 
+def format_summary(summary):
+    """Formats the summary with correct HTML structure and bullet points."""
+
+    # Initialize empty lists for different sections
+    categories = []
+    stocks_mentioned = []
+    key_takeaways = []
+    sentiment = ""
+
+    # Split summary into lines
+    lines = summary.split("\n")
+
+    # Categorize lines based on their content
+    current_section = None
+    for line in lines:
+        if line.startswith("Category:"):
+            current_section = "categories"
+            categories.append(line[len("Category:"):].strip())  # Extract category name
+        elif line.startswith("Stocks mentioned:"):
+            current_section = "stocks_mentioned"
+            stocks_mentioned.append(line[len("Stocks mentioned:"):].strip())  # Extract stock name
+        elif line.startswith("Key takeaways:"):
+            current_section = "key_takeaways"
+        elif line.startswith("Sentiment:"):
+            current_section = "sentiment"
+            sentiment = line[len("Sentiment:"):].strip()
+        elif current_section == "key_takeaways":
+            key_takeaways.append(line.strip())
+
+    # Format HTML output
+    formatted_summary = ""
+
+    # Add category
+    if categories:
+        formatted_summary += f"<p><b>Category:</b> {', '.join(categories)}</p>"
+
+    # Add stocks mentioned
+    if stocks_mentioned:
+        formatted_summary += f"<p><b>Key Stocks mentioned:</b> {', '.join(stocks_mentioned)}</p>"
+
+    # Add key takeaways
+    if key_takeaways:
+        formatted_summary += "<p><b>Key takeaways:</b></p><ul>"
+        for takeaway in key_takeaways:
+            formatted_summary += f"<li>{re.sub(r'^\s*-\s*', '', takeaway)}</li>"  # Remove leading hyphen and spaces
+        formatted_summary += "</ul>"
+
+    # Add sentiment
+    if sentiment:
+        formatted_summary += f"<p><b>Sentiment:</b> {sentiment}</p>"
+
+    return formatted_summary
+
+def get_html_content_summary_only(df):
+    """
+    Generates and returns the HTML content of the DataFrame with clickable titles and the video summary.
+
+    Parameters:
+    - df (DataFrame): DataFrame to generate HTML content from.
+
+    Returns:
+    - str: HTML representation of the DataFrame.
+    """
+    html_content = ""
+    for _, row in df.iterrows():
+        clickable_title = make_clickable(row['Title'], row['URL'])
+        summary = format_summary(row['Summary'])
+        
+        html_content += f'<div><h3>{clickable_title}</h3><p>{summary}</p></div>\n'
+
+    return html_content
+
 def get_transcript(video_id):
     """
     Fetches the transcript for a given YouTube video ID and converts it to lowercase.

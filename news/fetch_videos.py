@@ -71,10 +71,21 @@ def get_formated_date_today():
     formatted_date = now.strftime('%Y-%m-%d')
     return formatted_date
 
-def fetch_videos(start_date, end_date, channel_id):
+def fetch_videos(start_date, end_date, channel_id, csv_file):
+    # Read the existing CSV file into a DataFrame if it exists
+    if os.path.exists(csv_file):
+        existing_df = pd.read_csv(csv_file)
+    else:
+        existing_df = pd.DataFrame(columns=["Title", "Published At", "Duration (Min)", "Video ID", "URL"])
+
+    # Convert 'Published At' to datetime to ensure proper comparison
+    if not existing_df.empty:
+        existing_df['Published At'] = pd.to_datetime(existing_df['Published At'])
+
     video_data = []
     page_token = None
-    local_timezone = pytz.timezone(MY_TIMEZONE)  # Define the local timezone
+    local_timezone = pytz.timezone(MY_TIMEZONE)
+
     while True:
         request = youtube.search().list(
             part="snippet",
@@ -90,20 +101,26 @@ def fetch_videos(start_date, end_date, channel_id):
         video_ids = [item['id']['videoId'] for item in response.get("items", []) if 'videoId' in item['id']]
         if video_ids:
             video_request = youtube.videos().list(
-                part='contentDetails, snippet',
+                part='contentDetails,snippet',
                 id=','.join(video_ids)
             )
             video_details_response = video_request.execute()
 
             for video in video_details_response.get("items", []):
-                video_id = video['id']  # Ensure video_id is defined here
+                video_id = video['id']
                 content_details = video['contentDetails']
                 snippet = video['snippet']
+                published_at = datetime.strptime(snippet['publishedAt'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=pytz.UTC)
+
+                # Check if video already exists in the existing DataFrame
+                if not existing_df[existing_df['Video ID'] == video_id].empty:
+                    continue
+
                 video_data.append({
                     "Title": html.unescape(snippet['title']),
-                    "Published At": datetime.strptime(snippet['publishedAt'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=pytz.UTC),
+                    "Published At": published_at,
                     "Duration (Min)": iso_duration_to_minutes(content_details.get('duration', 'PT0S')),
-                    "Video ID":video_id,
+                    "Video ID": video_id,
                     "URL": f"https://www.youtube.com/watch?v={video_id}"
                 })
 
@@ -111,13 +128,15 @@ def fetch_videos(start_date, end_date, channel_id):
         if not page_token:
             break
 
-    df = pd.DataFrame(video_data)
-    if not df.empty:
-        df_sorted = df.sort_values(by=['Published At'])
-        return df_sorted
+    if video_data:
+        new_videos_df = pd.DataFrame(video_data)
+        combined_df = pd.concat([existing_df, new_videos_df], ignore_index=True).sort_values(by=['Published At'])
+        combined_df.to_csv(csv_file, index=False)
+        print(f"Appended {len(new_videos_df)} new videos to {csv_file}.")
+        return combined_df
     else:
-        print("No videos found.")
-        return pd.DataFrame()  # Return an empty DataFrame if no videos were added
+        print("No new videos found.")
+        return existing_df  # Return the existing DataFrame if no new videos were found
     
 def filter_videos_by_date_and_time(df_videos, period_type='today', number=1, hour_range=None):
     """
@@ -132,19 +151,19 @@ def filter_videos_by_date_and_time(df_videos, period_type='today', number=1, hou
     Returns:
     - DataFrame: Filtered DataFrame based on the date and optional time range.
     """
-    # Use the existing function to get the date range
+    if df_videos.empty:
+        print("The DataFrame is empty. No videos to filter.")
+        return df_videos
+
     start_date, end_date = get_date_range(period_type, number)
 
-    # Ensure datetime is timezone-aware for comparison
     local_timezone = pytz.timezone(MY_TIMEZONE)
-    df_videos['Published At'] = pd.to_datetime(df_videos['Published At']).dt.tz_convert(local_timezone)
-    start_date = start_date.astimezone(local_timezone)
-    end_date = end_date.astimezone(local_timezone)
+    start_date = start_date.astimezone(pytz.utc)
+    end_date = end_date.astimezone(pytz.utc)
+    df_videos['Published At'] = pd.to_datetime(df_videos['Published At'], utc=True)
 
-    # Filter the DataFrame based on the date range
     filtered_df = df_videos[(df_videos['Published At'] >= start_date) & (df_videos['Published At'] <= end_date)]
 
-    # Apply additional filtering by hour range if specified and period_type is 'today'
     if period_type == 'today' and hour_range:
         start_hour, end_hour = map(int, hour_range.split('-'))
         filtered_df = filtered_df[filtered_df['Published At'].dt.hour >= start_hour]
@@ -324,21 +343,81 @@ def get_transcript(video_id):
 def add_transcripts_to_df(df):
     """
     Iterates through the DataFrame, retrieves the transcript for each Video ID,
-    and saves the transcript in a new column in the DataFrame.
+    and saves the transcript in a new column in the DataFrame only if it doesn't exist or is NaN.
 
     Parameters:
     - df (pd.DataFrame): The DataFrame containing the video data.
 
     Returns:
-    - pd.DataFrame: The DataFrame with an additional 'Transcript' column.
+    - pd.DataFrame: The DataFrame with an updated 'Transcript' column.
     """
-    transcripts = []
-    for video_id in df['Video ID']:
-        transcript = get_transcript(video_id)
-        if transcript is None:
-            transcript = "No transcript for video"
-        transcripts.append(transcript)
-    
+    if 'Transcript' not in df.columns:
+        df['Transcript'] = pd.NA  # Initialize the 'Transcript' column if it doesn't exist
+
+    transcripts = df['Transcript'].tolist()
+    for index, row in df.iterrows():
+        if pd.isna(row['Transcript']) or row['Transcript'] == "":
+            transcript = get_transcript(row['Video ID'])
+            if transcript is None:
+                transcript = "No transcript for video"
+            transcripts[index] = transcript
+
     df['Transcript'] = transcripts
     return df
 
+def apply_task(text, client, task):
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o-2024-08-06", #"gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "You are a financial analyst."},
+                {"role": "user", "content": f"Please {task} for the following text:\n\n{text}"}
+            ],
+            max_tokens=3000
+        )
+        summary = response.choices[0].message.content.strip()
+        return summary
+    except openai.OpenAIError as e:  # Catch the general OpenAIError
+        if "maximum context length" in str(e):
+            print(f"Warning: Context length exceeded for transcript. Returning an empty summary.")
+            return "Context length exceeded. Summary not available."
+        else:
+            raise e  # Re-raise other types of OpenAI errors
+
+def apply_task_in_chunks(text, client, task, chunk_size=4000): # Adjust chunk size as needed
+    text_chunks = [text[i:i+chunk_size] for i in range(0, len(text), chunk_size)]
+    summaries = []
+    for chunk in text_chunks:
+        summary = apply_task(chunk, client, task)  # Reuse your original function
+        summaries.append(summary)
+    return "\n\n".join(summaries) # Combine or further summarize if needed
+
+def apply_tasks_on_all_transcripts(df, client, task):
+    """
+    Apply task for transcripts.
+
+    Parameters:
+    - df (pd.DataFrame): DataFrame containing video data with 'Transcript' and 'Summary' columns.
+    - client (openai.Client): OpenAI API client.
+    - task (str): The task description for summarizing the transcript.
+
+    Returns:
+    - pd.DataFrame: Updated DataFrame with 'Summary' column.
+    """
+    if 'Summary' not in df.columns:
+        df['Summary'] = pd.NA  # Initialize the 'Summary' column if it doesn't exist
+
+    summaries = df['Summary'].tolist()
+    for index, row in df.iterrows():
+        if pd.isna(row['Summary']):
+            transcript = row['Transcript']
+            if pd.isna(transcript) or transcript == "No transcript for video":
+                summary = "No summary"
+            else:
+                summary = apply_task(transcript, client, task)
+                if not summary or summary == "Context length exceeded. Summary not available.":
+                    summary = "No summary"
+            summaries[index] = summary
+
+    df['Summary'] = summaries
+    return df

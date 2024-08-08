@@ -17,6 +17,35 @@ if not api_key:
 
 youtube = build('youtube', 'v3', developerKey=api_key)
 
+# Dictionary of channel IDs and their corresponding names
+channels = {
+    "CNBC_TV": "UCrp_UI8XtuYfpiqluWLD7Lw",
+    "BloombergTechnology": 'UCrM7B7SL_g1edFOnmj-SDKg',
+    "YahooFinance": 'UCEAZeUIeJs0IjQiqTCdVSIg',
+    "DeepWater": 'UCQCNLsdpDV1XSHH4V8WQuPA',
+    "BobUnlimited": 'UClkYGk572o1kZp9juGxSSHg',
+    "LukeGromenFFTTLLC": 'UC3dgTGurzmoefBchduxs4Gg',
+    "TheDavidLinReport": 'UCaD8nSFXtoX7pDeoK6v6pKw'
+}
+
+# Function to get channel name from ID
+def get_channel_name_by_id(channel_id, channels):
+    for name, id in channels.items():
+        if id == channel_id:
+            return name
+    return None
+
+def get_date_from_string(date_str):
+    local_timezone = pytz.timezone(MY_TIMEZONE)
+    try:
+        specified_date = datetime.strptime(date_str, "%m-%d-%Y")
+    except ValueError:
+        raise ValueError("Incorrect date format, should be MM-DD-YYYY")
+    
+    localized_date = local_timezone.localize(specified_date)
+    
+    return localized_date
+
 def get_date_range(period_type, number=1):
     local_timezone = pytz.timezone(MY_TIMEZONE)
     now = datetime.now(pytz.utc).astimezone(local_timezone)    
@@ -130,7 +159,7 @@ def fetch_videos(start_date, end_date, channel_id, csv_file):
 
     if video_data:
         new_videos_df = pd.DataFrame(video_data)
-        combined_df = pd.concat([existing_df, new_videos_df], ignore_index=True).sort_values(by=['Published At'])
+        combined_df = pd.concat([existing_df, new_videos_df], ignore_index=True).sort_values(by=['Published At'], ascending=False)
         combined_df.to_csv(csv_file, index=False)
         print(f"Appended {len(new_videos_df)} new videos to {csv_file}.")
         return combined_df
@@ -174,24 +203,17 @@ def filter_videos_by_date_and_time(df_videos, period_type='today', number=1, hou
 from IPython.display import HTML
 
 def make_clickable(title, url):
-    """
-    Generates an HTML link for the given title and URL.
-
-    Parameters:
-    - title (str): The text to display.
-    - url (str): The URL to link to.
-
-    Returns:
-    - str: HTML link.
-    """
     return f'<a href="{url}" target="_blank">{title}</a>'
 
-def display_df(df):
+def display_df(df, include_transcript=False, include_duration=False, include_video_id=False):
     """
-    Displays the DataFrame in a Jupyter Notebook with clickable titles and without the URL column.
+    Displays the DataFrame in a Jupyter Notebook with clickable titles and optional columns.
 
     Parameters:
     - df (DataFrame): DataFrame to display.
+    - include_transcript (bool): Whether to include the Transcript column in the display.
+    - include_duration (bool): Whether to include the Duration (Min) column in the display.
+    - include_video_id (bool): Whether to include the VideoID column in the display.
     """
     # Create a copy for display to avoid altering the original DataFrame
     df_display = df.copy()
@@ -199,10 +221,22 @@ def display_df(df):
     # Make titles clickable
     df_display['Title'] = df_display.apply(lambda x: make_clickable(x['Title'], x['URL']), axis=1)
 
-    # Generate HTML content without the URL column
-    html_content = df_display.drop('URL', axis=1).to_html(escape=False, index=False)
+    # Format the 'Published At' column to show only the date
+    df_display['Published At'] = pd.to_datetime(df_display['Published At']).dt.date
 
-    # Display the DataFrame using HTML in Jupyter Notebook
+    # Drop the URL column for display
+    df_display.drop('URL', axis=1, inplace=True)
+
+    # Drop optional columns based on parameters and existence
+    if not include_transcript and 'Transcript' in df_display.columns:
+        df_display.drop('Transcript', axis=1, inplace=True)
+    if not include_duration and 'Duration (Min)' in df_display.columns:
+        df_display.drop('Duration (Min)', axis=1, inplace=True)
+    if not include_video_id and 'Video ID' in df_display.columns:
+        df_display.drop('Video ID', axis=1, inplace=True)
+
+    # Generate HTML content and display the DataFrame
+    html_content = df_display.to_html(escape=False, index=False)
     display(HTML(html_content))
 
 def save_df_to_html(df, file_name):
@@ -246,7 +280,6 @@ def format_summary(summary):
     categories = []
     stocks_mentioned = []
     key_takeaways = []
-    sentiment = ""
 
     # Split summary into lines
     lines = summary.split("\n")
@@ -262,9 +295,6 @@ def format_summary(summary):
             stocks_mentioned.append(line[len("Stocks mentioned:"):].strip())  # Extract stock name
         elif line.startswith("Key takeaways:"):
             current_section = "key_takeaways"
-        elif line.startswith("Sentiment:"):
-            current_section = "sentiment"
-            sentiment = line[len("Sentiment:"):].strip()
         elif current_section == "key_takeaways":
             key_takeaways.append(line.strip())
 
@@ -286,10 +316,6 @@ def format_summary(summary):
             formatted_summary += f"<li>{re.sub(r'^\s*-\s*', '', takeaway)}</li>"  # Remove leading hyphen and spaces
         formatted_summary += "</ul>"
 
-    # Add sentiment
-    if sentiment:
-        formatted_summary += f"<p><b>Sentiment:</b> {sentiment}</p>"
-
     return formatted_summary
 
 def get_html_content_summary_only(df):
@@ -302,6 +328,7 @@ def get_html_content_summary_only(df):
     Returns:
     - str: HTML representation of the DataFrame.
     """
+    df['Summary'] = df['Summary'].fillna('')  # Fill NaN values with an empty string
     html_content = ""
     for _, row in df.iterrows():
         clickable_title = make_clickable(row['Title'], row['URL'])
@@ -354,17 +381,33 @@ def add_transcripts_to_df(df):
     if 'Transcript' not in df.columns:
         df['Transcript'] = pd.NA  # Initialize the 'Transcript' column if it doesn't exist
 
-    transcripts = df['Transcript'].tolist()
     for index, row in df.iterrows():
         if pd.isna(row['Transcript']) or row['Transcript'] == "":
             transcript = get_transcript(row['Video ID'])
             if transcript is None:
                 transcript = "No transcript for video"
-            transcripts[index] = transcript
+            df.at[index, 'Transcript'] = transcript
 
-    df['Transcript'] = transcripts
     return df
 
+def format_content(row, columns):
+    content = ""
+    for col in columns:
+        if pd.isna(row[col]):
+            row[col] = ""  # or some other placeholder text
+        content += f"<strong>{col}:</strong> {str(row[col]).replace('\n', '<br>')}<br>\n"
+    return content
+
+def save_videos_to_text(df, file_name, *columns):
+    html_content = ""
+    for _, row in df.iterrows():
+        formatted_content = format_content(row, columns)
+        html_content += f'<div>{formatted_content}</div>\n'
+
+    # Save the HTML content to an HTML file
+    with open(file_name, 'w') as file:
+        file.write(html_content)
+        
 def apply_task(text, client, task):
     try:
         response = client.chat.completions.create(
@@ -421,3 +464,4 @@ def apply_tasks_on_all_transcripts(df, client, task):
 
     df['Summary'] = summaries
     return df
+

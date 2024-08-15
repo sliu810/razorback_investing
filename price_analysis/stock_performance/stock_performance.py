@@ -3,6 +3,7 @@ import pandas as pd
 from datetime import datetime, timedelta
 import plotly.graph_objs as go
 import streamlit as st
+from collections import Counter
 
 def get_date_from_period(period):
     end_date = datetime.now()
@@ -34,14 +35,14 @@ def get_stock_performance(symbol, start_date, end_date=None):
     hist = stock.history(start=start_date, end=end_date)
     
     if hist.empty:
-        st.warning(f"No data available for {symbol} in the specified period.")
+        print(f"Warning: No data available for {symbol} in the specified period.")
         return None
     
     start_date_in_data = hist.index[0].strftime('%Y-%m-%d')
     end_date_in_data = hist.index[-1].strftime('%Y-%m-%d')
     
     if start_date > start_date_in_data or end_date < end_date_in_data:
-        st.warning(f"Data for {symbol} is only available from {start_date_in_data} to {end_date_in_data}. Please adjust your date range.")
+        print(f"Warning: Data for {symbol} is only available from {start_date_in_data} to {end_date_in_data}. Please adjust your date range.")
         return None
     
     start_price = round(hist['Close'].iloc[0], 1)
@@ -57,27 +58,35 @@ def get_stock_performance(symbol, start_date, end_date=None):
         "percent_change": percent_change,
         "history": hist
     }
-
-def print_stock_performance(results):
+def print_stock_performance(results, environment='streamlit'):
     if not results:
-        st.write("No data available for the specified period.")
+        if environment == 'streamlit':
+            import streamlit as st
+            st.write("No data available for the specified period.")
+        else:
+            print("No data available for the specified period.")
         return
 
     df = pd.DataFrame(results)
     df = df.sort_values(by='percent_change', ascending=False)
-    df['percent_change'] = df['percent_change'].apply(lambda x: f"<span style='color: {'green' if x > 0 else 'red'}'>{x:.1f}%</span>")
-    st.write(df[['symbol', 'start_date', 'end_date', 'start_price', 'end_price', 'percent_change']].to_html(escape=False, index=False), unsafe_allow_html=True)
+    df['percent_change'] = df['percent_change'].apply(lambda x: f"{x:.1f}%")
 
-def plot_stock_performance_interactive(results, price_type='Close', normalize=True):
+    if environment == 'streamlit':
+        import streamlit as st
+        st.write(df[['symbol', 'start_date', 'end_date', 'start_price', 'end_price', 'percent_change']].to_html(escape=False, index=False), unsafe_allow_html=True)
+    else:
+        print(df[['symbol', 'start_date', 'end_date', 'start_price', 'end_price', 'percent_change']])
+
+def plot_stock_performance_interactive(results, price_type='Close', normalize=True, environment='streamlit'):
     if not results:
-        st.write("No data available to plot.")
-        return
+        print("No data available to plot.")
+        return None
 
     fig = go.Figure()
     
     for result in results:
         hist = result['history']
-        st.write(f"Plotting {result['symbol']} with {len(hist)} data points.")
+        print(f"Plotting {result['symbol']} with {len(hist)} data points.")
         if normalize:
             hist = hist.copy()
             hist[price_type] = hist[price_type] / hist[price_type].iloc[0]
@@ -89,10 +98,9 @@ def plot_stock_performance_interactive(results, price_type='Close', normalize=Tr
         yaxis_title=f'{"Normalized " if normalize else ""}{price_type} Price',
         hovermode='x unified'
     )
-    
-    st.plotly_chart(fig)
+    return fig
 
-def get_and_print_stock_performance(symbols, period=None, start_date=None, end_date=None, normalize=True):
+def get_and_print_stock_performance(symbols, period=None, start_date=None, end_date=None, normalize=True, environment='streamlit'):
     if isinstance(symbols, str):
         symbols = [symbols]
 
@@ -107,5 +115,6 @@ def get_and_print_stock_performance(symbols, period=None, start_date=None, end_d
         if result:
             results.append(result)
 
-    print_stock_performance(results)
-    plot_stock_performance_interactive(results, price_type='Close', normalize=normalize)
+    print_stock_performance(results,environment=environment)
+    fig = plot_stock_performance_interactive(results, price_type='Close', normalize=normalize,environment=environment)
+    return fig

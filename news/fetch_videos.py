@@ -25,7 +25,8 @@ channels = {
     "DeepWater": 'UCQCNLsdpDV1XSHH4V8WQuPA',
     "BobUnlimited": 'UClkYGk572o1kZp9juGxSSHg',
     "LukeGromenFFTTLLC": 'UC3dgTGurzmoefBchduxs4Gg',
-    "TheDavidLinReport": 'UCaD8nSFXtoX7pDeoK6v6pKw'
+    "TheDavidLinReport": 'UCaD8nSFXtoX7pDeoK6v6pKw',
+    "TheLeadLagReport": 'UCInl2wu4m5EjpgZP7kosVUg',
 }
 
 # Function to get channel name from ID
@@ -454,6 +455,7 @@ def apply_tasks_on_all_transcripts(df, client, task):
     for index, row in df.iterrows():
         if pd.isna(row['Summary']):
             transcript = row['Transcript']
+            print(transcript)
             if pd.isna(transcript) or transcript == "No transcript for video":
                 summary = "No summary"
             else:
@@ -463,5 +465,7 @@ def apply_tasks_on_all_transcripts(df, client, task):
             summaries[index] = summary
 
     df['Summary'] = summaries
+    print(summaries)
+
     return df
 

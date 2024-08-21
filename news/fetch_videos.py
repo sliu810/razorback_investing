@@ -412,7 +412,7 @@ def save_videos_to_text(df, file_name, *columns):
 def apply_task(text, client, task):
     try:
         response = client.chat.completions.create(
-            model="gpt-4o-2024-08-06", #"gpt-3.5-turbo",
+            model= "gpt-3.5-turbo", # "gpt-4o-2024-08-06", #"gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a financial analyst."},
                 {"role": "user", "content": f"Please {task} for the following text:\n\n{text}"}
@@ -451,21 +451,18 @@ def apply_tasks_on_all_transcripts(df, client, task):
     if 'Summary' not in df.columns:
         df['Summary'] = pd.NA  # Initialize the 'Summary' column if it doesn't exist
 
-    summaries = df['Summary'].tolist()
+    #summaries = df['Summary'].tolist()
     for index, row in df.iterrows():
         if pd.isna(row['Summary']):
             transcript = row['Transcript']
-            print(transcript)
             if pd.isna(transcript) or transcript == "No transcript for video":
                 summary = "No summary"
             else:
                 summary = apply_task(transcript, client, task)
                 if not summary or summary == "Context length exceeded. Summary not available.":
                     summary = "No summary"
-            summaries[index] = summary
-
-    df['Summary'] = summaries
-    print(summaries)
+            # Update the DataFrame with the summary
+            df.at[index, 'Summary'] = summary
 
     return df
 

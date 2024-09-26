@@ -101,15 +101,9 @@ def get_formated_date_today():
     formatted_date = now.strftime('%Y-%m-%d')
     return formatted_date
 
-def fetch_videos(start_date, end_date, channel_id, csv_file):
-    # Read the existing CSV file into a DataFrame if it exists
-    if os.path.exists(csv_file):
-        existing_df = pd.read_csv(csv_file)
-    else:
-        existing_df = pd.DataFrame(columns=["Title", "Published At", "Duration (Min)", "Video ID", "URL"])
-
+def fetch_videos(start_date, end_date, channel_id, existing_df=None):
     # Convert 'Published At' to datetime to ensure proper comparison
-    if not existing_df.empty:
+    if existing_df is not None and not existing_df.empty and 'Published At' in existing_df.columns:
         existing_df['Published At'] = pd.to_datetime(existing_df['Published At'])
 
     video_data = []
@@ -314,7 +308,7 @@ def format_summary(summary):
     if key_takeaways:
         formatted_summary += "<p><b>Key takeaways:</b></p><ul>"
         for takeaway in key_takeaways:
-            formatted_summary += f"<li>{re.sub(r'^\s*-\s*', '', takeaway)}</li>"  # Remove leading hyphen and spaces
+            formatted_summary += f"<li>{re.sub(r'^\\s*-\\s*', '', takeaway)}</li>"  # Remove leading hyphen and spaces
         formatted_summary += "</ul>"
 
     return formatted_summary
@@ -322,21 +316,19 @@ def format_summary(summary):
 def get_html_content_summary_only(df):
     """
     Generates and returns the HTML content of the DataFrame with clickable titles and the video summary.
-
-    Parameters:
-    - df (DataFrame): DataFrame to generate HTML content from.
-
+    
+    Args:
+    - df (pandas.DataFrame): DataFrame containing video information.
+    
     Returns:
     - str: HTML representation of the DataFrame.
     """
     df['Summary'] = df['Summary'].fillna('')  # Fill NaN values with an empty string
     html_content = ""
     for _, row in df.iterrows():
-        clickable_title = make_clickable(row['Title'], row['URL'])
-        summary = format_summary(row['Summary'])
-        
-        html_content += f'<div><h3>{clickable_title}</h3><p>{summary}</p></div>\n'
-
+        html_content += f"<h2><a href='https://www.youtube.com/watch?v={row['Video ID']}' target='_blank'>{row['Title']}</a></h2>"
+        html_content += f"<p>{row['Summary']}</p>"
+        html_content += "<hr>"
     return html_content
 
 def get_transcript(video_id):

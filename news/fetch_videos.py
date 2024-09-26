@@ -155,8 +155,6 @@ def fetch_videos(start_date, end_date, channel_id, existing_df=None):
     if video_data:
         new_videos_df = pd.DataFrame(video_data)
         combined_df = pd.concat([existing_df, new_videos_df], ignore_index=True).sort_values(by=['Published At'], ascending=False)
-        combined_df.to_csv(csv_file, index=False)
-        print(f"Appended {len(new_videos_df)} new videos to {csv_file}.")
         return combined_df
     else:
         print("No new videos found.")

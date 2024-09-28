@@ -305,8 +305,9 @@ def format_summary(summary):
     # Add key takeaways
     if key_takeaways:
         formatted_summary += "<p><b>Key takeaways:</b></p><ul>"
+        pattern = r'^\s*-\s*'
         for takeaway in key_takeaways:
-            formatted_summary += f"<li>{re.sub(r'^\\s*-\\s*', '', takeaway)}</li>"  # Remove leading hyphen and spaces
+            formatted_summary += f"<li>{re.sub(pattern, '', takeaway)}</li>"  # Remove leading hyphen and spaces
         formatted_summary += "</ul>"
 
     return formatted_summary
@@ -386,7 +387,8 @@ def format_content(row, columns):
     for col in columns:
         if pd.isna(row[col]):
             row[col] = ""  # or some other placeholder text
-        content += f"<strong>{col}:</strong> {str(row[col]).replace('\n', '<br>')}<br>\n"
+        replaced_value = str(row[col]).replace('\n', '<br>')
+        content += f"<strong>{col}:</strong> {replaced_value}<br>\n"
     return content
 
 def save_videos_to_text(df, file_name, *columns):
@@ -455,4 +457,3 @@ def apply_tasks_on_all_transcripts(df, client, task):
             df.at[index, 'Summary'] = summary
 
     return df
-

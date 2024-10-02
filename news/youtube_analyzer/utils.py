@@ -2,6 +2,7 @@ import pytz
 from datetime import datetime
 import re
 import logging
+from isodate import parse_duration
 
 def iso_duration_to_minutes(iso_duration):
     """
@@ -48,3 +49,21 @@ def make_clickable(text, link):
         str: HTML string representing a clickable link.
     """
     return f'<a href="{link}" target="_blank">{text}</a>'
+
+def sanitize_filename(filename: str, max_length: int = 255) -> str:
+    """
+    Sanitize a string to be used as a filename.
+    
+    Args:
+    filename (str): The string to be sanitized.
+    max_length (int): The maximum length of the resulting filename. Default is 255.
+    
+    Returns:
+    str: The sanitized filename.
+    """
+    # Replace spaces with underscores and remove non-alphanumeric characters
+    sanitized = re.sub(r'[^\w\-_\. ]', '', filename)
+    sanitized = re.sub(r'\s+', '_', sanitized)
+    
+    # Trim the filename if it's too long
+    return sanitized[:max_length]

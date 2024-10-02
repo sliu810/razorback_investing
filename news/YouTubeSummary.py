@@ -151,13 +151,14 @@ class YouTubeSummary:
             self._videos_df = existing_df if 'existing_df' in locals() else pd.DataFrame()
 
         if self._videos_df is None or self._videos_df.empty:
-            logging.error("No videos data available. Make sure to fetch videos first.")
+            logging.warning("No videos fetched. Check if the date range is correct or if there are any API issues.")
+            self._videos_df = pd.DataFrame(columns=['Video ID', 'Title', 'Published At', 'Duration (Min)', 'URL'])
         else:
             logging.info(f"Working with {len(self._videos_df)} videos.")
 
     def _add_transcripts(self):
         if self._videos_df is None or self._videos_df.empty:
-            logging.error("No videos data available. Make sure to fetch videos first.")
+            logging.warning("No videos available to add transcripts.")
             return
 
         csv_file = f'{self._file_prefix}.csv'

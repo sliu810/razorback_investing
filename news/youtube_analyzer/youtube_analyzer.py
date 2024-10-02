@@ -10,19 +10,19 @@ import smtplib
 from typing import Dict, Any, List, Callable
 import openai
 from youtube_api import YouTubeAPI
-from ai_tasks import apply_tasks_on_all_transcripts
+from news.youtube_analyzer.llm_processor import LLMProcessor
 
-class YouTubeAnalysis:
-    def __init__(self, config: Dict[str, Any], base_dir: str = None):
+class YouTubeAnalyzer:
+    def __init__(self, config: Dict[str, Any], youtube_api: YouTubeAPI, llm_processor: LLMProcessor, base_dir: str = None):
         self.config = config
         self.base_dir = base_dir or os.path.join(os.getcwd(), 'youtube_analysis_data')
+        self.youtube_api = youtube_api
+        self.llm_processor = llm_processor
         self._setup_logging()
-        self._initialize_clients()
         self._videos_df = None
         self._html_content = None
         self._channel_name = self.config['channels']['default']
         self._timezone = self.config.get('timezone', 'America/Chicago')
-        self.youtube_api = YouTubeAPI(api_key=self.config.get('youtube_api_key'), timezone=self._timezone)
         self._set_channel()
         self._setup_pipeline()
 
@@ -34,9 +34,6 @@ class YouTubeAnalysis:
         formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
         console_handler.setFormatter(formatter)
         logger.addHandler(console_handler)
-
-    def _initialize_clients(self):
-        self._client = openai.OpenAI(api_key=os.getenv('OPENAI_API_KEY'))
 
     def _setup_pipeline(self):
         self.pipeline_stages: List[Callable] = [
@@ -74,13 +71,13 @@ class YouTubeAnalysis:
     def _fetch_videos(self):
         logging.info(f"Fetching videos for channel ID: {self._channel_id}")
         csv_file = f'{self._file_prefix}.csv'
-        start_date, end_date = self.youtube_api.get_date_range(self.config['fetch']['period_type'], self.config['fetch']['number'])
+        start_date, end_date = YouTubeAPI.get_date_range(self.config['fetch']['period_type'], self.config['fetch']['number'], self._timezone)
         logging.info(f"Date range: {start_date} to {end_date}")
 
         try:
             existing_df = pd.read_csv(csv_file) if os.path.exists(csv_file) else pd.DataFrame()
             logging.info(f"Existing DataFrame shape: {existing_df.shape}")
-            self._videos_df = self.youtube_api.fetch_videos(start_date, end_date, self._channel_id)
+            self._videos_df = self.youtube_api.fetch_channel_info(self._channel_id, start_date, end_date)
             logging.info(f"Fetched videos DataFrame shape: {self._videos_df.shape if self._videos_df is not None else 'None'}")
 
             if self._videos_df is not None and not self._videos_df.empty:
@@ -103,9 +100,26 @@ class YouTubeAnalysis:
 
         csv_file = f'{self._file_prefix}.csv'
         logging.info("Adding transcripts to videos")
-        self._videos_df['Transcript'] = self._videos_df['Video ID'].apply(self.youtube_api.get_transcript)
+        self._videos_df['Transcript'] = self._videos_df['Video ID'].apply(self.youtube_api.get_transcript_for_video)
         self._videos_df.to_csv(csv_file, index=False)
         logging.info(f"Saved videos with transcripts to {csv_file}")
+
+    def apply_tasks_on_all_transcripts(self, df, task):
+        if 'Summary' not in df.columns:
+            df['Summary'] = pd.NA
+
+        for index, row in df.iterrows():
+            if pd.isna(row['Summary']):
+                transcript = row['Transcript']
+                if pd.isna(transcript) or transcript == "No transcript for video":
+                    summary = "No summary"
+                else:
+                    summary = self.llm_processor.apply_task(transcript, task)
+                    if not summary or summary == "Context length exceeded. Summary not available.":
+                        summary = "No summary"
+                df.at[index, 'Summary'] = summary
+
+        return df
 
     def _generate_summaries(self):
         if self._videos_df is None or self._videos_df.empty:
@@ -117,7 +131,7 @@ class YouTubeAnalysis:
             return
 
         logging.info("Generating summaries for videos")
-        self._videos_df = apply_tasks_on_all_transcripts(self._videos_df, self._client, self.config['summary']['task'])
+        self._videos_df = self.apply_tasks_on_all_transcripts(self._videos_df, self.config['summary']['task'])
         csv_file = f'{self._file_prefix}.csv'
         self._videos_df.to_csv(csv_file, index=False)
         logging.info(f"Saved summaries to {csv_file}")
@@ -192,16 +206,12 @@ class YouTubeAnalysis:
             logging.error(f"An error occurred during pipeline execution: {str(e)}")
 
     def add_transcripts_to_df(self, df):
-        """
-        Iterates through the DataFrame, retrieves the transcript for each Video ID,
-        and saves the transcript in a new column in the DataFrame only if it doesn't exist or is NaN.
-        """
         if 'Transcript' not in df.columns:
-            df['Transcript'] = pd.NA  # Initialize the 'Transcript' column if it doesn't exist
+            df['Transcript'] = pd.NA
     
         for index, row in df.iterrows():
             if pd.isna(row['Transcript']) or row['Transcript'] == "":
-                transcript = self.youtube_api.get_transcript(row['Video ID'])
+                transcript = self.youtube_api.get_transcript_for_video(row['Video ID'])
                 if transcript is None:
                     transcript = "No transcript for video"
                 df.at[index, 'Transcript'] = transcript
@@ -212,7 +222,7 @@ class YouTubeAnalysis:
         content = ""
         for col in columns:
             if pd.isna(row[col]):
-                row[col] = ""  # or some other placeholder text
+                row[col] = ""
             content += f"<strong>{col}:</strong> {str(row[col]).replace('\n', '<br>')}<br>\n"
         return content
 
@@ -222,22 +232,12 @@ class YouTubeAnalysis:
             formatted_content = self.format_content(row, columns)
             html_content += f'<div>{formatted_content}</div>\n'
 
-        # Save the HTML content to an HTML file
         with open(file_name, 'w', encoding='utf-8') as file:
             file.write(html_content)
         
         logging.info(f"Saved video content to {file_name}")
 
-def get_html_content_summary_only(self, df):
-        """
-        Generates HTML content summarizing the videos.
-
-        Args:
-            df (pd.DataFrame): DataFrame containing video data.
-
-        Returns:
-            str: HTML content as a string.
-        """
+    def _generate_html_content(self, df):
         html_content = "<html><body>"
         for _, row in df.iterrows():
             html_content += f"<h2>{html.escape(row['Title'])}</h2>"
@@ -247,6 +247,21 @@ def get_html_content_summary_only(self, df):
         html_content += "</body></html>"
         return html_content
 
-def _prepare_html_content(self):
-        logging.info("Preparing HTML content")
-        self._html_content = self.get_html_content_summary_only(self._videos_df)
+    def _get_formated_date_today(self):
+        return datetime.now().strftime("%Y-%m-%d")
+
+# Usage example:
+if __name__ == "__main__":
+    config = {
+        'channels': {'default': 'ExampleChannel'},
+        'fetch': {'period_type': 'days', 'number': 7},
+        'summary': {'task': 'Summarize the video content'},
+        'email': {'recipients': ['example@email.com']},
+        'timezone': 'America/New_York'
+    }
+    
+    youtube_api = YouTubeAPI(api_key=os.getenv('YOUTUBE_API_KEY'), timezone=config['timezone'])
+    llm_processor = LLMProcessor(openai.Client(api_key=os.getenv('OPENAI_API_KEY')))
+    
+    analysis = YouTubeAnalyzer(config, youtube_api, llm_processor)
+    analysis.run()

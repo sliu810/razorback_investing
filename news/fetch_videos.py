@@ -7,6 +7,10 @@ from IPython.display import HTML
 import html
 import re
 from youtube_transcript_api import YouTubeTranscriptApi
+import time
+from googleapiclient.errors import HttpError
+import openai
+from openai import OpenAI
 
 MY_TIMEZONE = 'America/Chicago'
 
@@ -102,8 +106,11 @@ def get_formated_date_today():
     return formatted_date
 
 def fetch_videos(start_date, end_date, channel_id, existing_df=None):
+    if existing_df is None or existing_df.empty:
+        existing_df = pd.DataFrame(columns=['Video ID', 'Title', 'Published At', 'Duration (Min)', 'URL'])
+    
     # Convert 'Published At' to datetime to ensure proper comparison
-    if existing_df is not None and not existing_df.empty and 'Published At' in existing_df.columns:
+    if not existing_df.empty and 'Published At' in existing_df.columns:
         existing_df['Published At'] = pd.to_datetime(existing_df['Published At'])
 
     video_data = []
@@ -111,16 +118,24 @@ def fetch_videos(start_date, end_date, channel_id, existing_df=None):
     local_timezone = pytz.timezone(MY_TIMEZONE)
 
     while True:
-        request = youtube.search().list(
-            part="snippet",
-            channelId=channel_id,
-            publishedAfter=start_date.isoformat(),
-            publishedBefore=end_date.isoformat(),
-            maxResults=50,
-            pageToken=page_token,
-            type="video"
-        )
-        response = request.execute()
+        try:
+            request = youtube.search().list(
+                part="snippet",
+                channelId=channel_id,
+                publishedAfter=start_date.isoformat(),
+                publishedBefore=end_date.isoformat(),
+                maxResults=50,
+                pageToken=page_token,
+                type="video"
+            )
+            response = request.execute()
+        except HttpError as e:
+            if e.resp.status in [403, 429]:  # Quota exceeded or rate limit
+                logging.warning(f"API limit reached. Waiting for 60 seconds. Error: {e}")
+                time.sleep(60)
+                continue
+            else:
+                raise
 
         video_ids = [item['id']['videoId'] for item in response.get("items", []) if 'videoId' in item['id']]
         if video_ids:
@@ -137,8 +152,9 @@ def fetch_videos(start_date, end_date, channel_id, existing_df=None):
                 published_at = datetime.strptime(snippet['publishedAt'], '%Y-%m-%dT%H:%M:%SZ').replace(tzinfo=pytz.UTC)
 
                 # Check if video already exists in the existing DataFrame
-                if not existing_df[existing_df['Video ID'] == video_id].empty:
-                    continue
+                if not existing_df.empty and 'Video ID' in existing_df.columns:
+                    if not existing_df[existing_df['Video ID'] == video_id].empty:
+                        continue
 
                 video_data.append({
                     "Title": html.unescape(snippet['title']),
@@ -402,7 +418,7 @@ def save_videos_to_text(df, file_name, *columns):
 def apply_task(text, client, task):
     try:
         response = client.chat.completions.create(
-            model= "gpt-3.5-turbo", # "gpt-4o-2024-08-06", #"gpt-3.5-turbo",
+            model= "gpt-4o", # "gpt-4o-2024-08-06", #"gpt-3.5-turbo",
             messages=[
                 {"role": "system", "content": "You are a financial analyst."},
                 {"role": "user", "content": f"Please {task} for the following text:\n\n{text}"}
@@ -455,4 +471,3 @@ def apply_tasks_on_all_transcripts(df, client, task):
             df.at[index, 'Summary'] = summary
 
     return df
-

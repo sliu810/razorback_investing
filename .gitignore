@@ -1,3 +1,6 @@
 # Ignore secrets in the news directory
 news/client_secret_*.jsonnews/client_secret_447470198174-bqv62db8l4lnsasqdahafbdes1fgm0ha.apps.googleusercontent.com.json
 news/client_secret_447470198174-bqv62db8l4lnsasqdahafbdes1fgm0ha.apps.googleusercontent.com.json
+# Ignore Python cache files and directories
+__pycache__/
+*.pyc

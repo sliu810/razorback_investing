@@ -6,18 +6,25 @@ from utils import iso_duration_to_minutes, sanitize_filename
 from youtube_base import YouTubeBase
 import os
 import json
-from typing import Optional, Dict, Tuple
+from typing import Optional, Tuple
 
 class Video:
     def __init__(self, video_id: str, youtube_base: Optional[YouTubeBase] = None, transcript_language: str = 'en'):
-        self.video_id = video_id
-        self.youtube_base = youtube_base or YouTubeBase()
-        self.transcript_language = transcript_language
-        self.video_info: Optional[Dict] = None
+        self.video_id: str = video_id
+        self.youtube_base: YouTubeBase = youtube_base or YouTubeBase()
+        self.transcript_language: str = transcript_language
+        self.title: Optional[str] = None
+        self.description: Optional[str] = None
+        self.published_at: Optional[datetime] = None
+        self.duration_minutes: Optional[float] = None
+        self.channel_id: Optional[str] = None
+        self.channel_name: Optional[str] = None
+        self.transcript: Optional[Tuple[str, str]] = None
+        self._info_fetched: bool = False
 
-    def fetch_video_info(self, transcript_language: Optional[str] = None) -> Optional[Dict]:
-        if self.video_info is not None:
-            return self.video_info
+    def fetch_video_info(self) -> bool:
+        if self._info_fetched:
+            return True
 
         try:
             video_request = self.youtube_base.create_videos_request(
@@ -28,46 +35,49 @@ class Video:
 
             if not video_response['items']:
                 self.youtube_base.logger.warning(f"No video found for ID: {self.video_id}")
-                return None
+                return False
 
             video_data = video_response['items'][0]
             snippet = video_data['snippet']
             content_details = video_data['contentDetails']
 
             local_timezone = pytz.timezone(self.youtube_base.timezone)
-            published_at = datetime.strptime(
+            self.published_at = datetime.strptime(
                 snippet['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"
             ).replace(tzinfo=pytz.UTC).astimezone(local_timezone)
 
-            self.video_info = {
-                'Video ID': self.video_id,
-                'Title': snippet['title'],
-                'Description': snippet['description'],
-                'Published At': published_at,
-                'Duration (minutes)': iso_duration_to_minutes(content_details['duration']),
-                'Channel ID': snippet['channelId'],
-                'Channel Name': snippet['channelTitle'],
-                'Transcript': self.get_transcript(transcript_language)
-            }
-            return self.video_info
+            self.title = snippet['title']
+            self.description = snippet['description']
+            self.duration_minutes = iso_duration_to_minutes(content_details['duration'])
+            self.channel_id = snippet['channelId']
+            self.channel_name = snippet['channelTitle']
+            self.transcript = self.get_transcript()
+
+            self._info_fetched = True
+            return True
         except Exception as e:
             self.youtube_base.logger.error(f"An error occurred while fetching video info for {self.video_id}: {str(e)}")
-            return None
+            return False
 
     def get_video_title(self) -> Optional[str]:
-        info = self.fetch_video_info()
-        return info['Title'] if info else None
+        if not self._info_fetched:
+            self.fetch_video_info()
+        return self.title
 
-    def to_dict(self) -> Dict:
-        if not self.video_info:
+    def to_dict(self) -> dict:
+        if not self._info_fetched:
             self.fetch_video_info()
         
-        serializable_info = self.video_info.copy() if self.video_info else {}
-        
-        if 'Published At' in serializable_info:
-            serializable_info['Published At'] = serializable_info['Published At'].isoformat()
-        
-        return serializable_info
+        return {
+            'Video ID': self.video_id,
+            'Title': self.title,
+            'Description': self.description,
+            'Published At': self.published_at.isoformat() if self.published_at else None,
+            'Duration (minutes)': self.duration_minutes,
+            'Channel ID': self.channel_id,
+            'Channel Name': self.channel_name,
+            'Transcript': self.transcript
+        }
 
     def transform_transcript_for_readability(self, transcript: str, language: str) -> str:
         if not transcript or language != 'en':
@@ -83,17 +93,15 @@ class Video:
 
         return transcript
 
-    def get_transcript(self, transcript_language: Optional[str] = None) -> Tuple[Optional[str], Optional[str]]:
-        transcript_language = transcript_language or self.transcript_language
-        
+    def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
             
             try:
-                transcript = transcript_list.find_transcript([transcript_language])
+                transcript = transcript_list.find_transcript([self.transcript_language])
             except NoTranscriptFound:
-                if transcript_language != 'en':
-                    self.youtube_base.logger.warning(f"{transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
+                if self.transcript_language != 'en':
+                    self.youtube_base.logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
                     transcript = transcript_list.find_transcript(['en'])
                 else:
                     raise
@@ -101,42 +109,35 @@ class Video:
             full_transcript = ' '.join([entry['text'] for entry in transcript.fetch()])
             transformed_transcript = self.transform_transcript_for_readability(full_transcript, transcript.language_code)
             
-            if self.video_info is not None:
-                self.video_info['Transcript'] = (transformed_transcript, transcript.language_code)
-            
             return transformed_transcript, transcript.language_code
         except (TranscriptsDisabled, NoTranscriptFound):
             self.youtube_base.logger.warning(f"No transcript available for video ID: {self.video_id}")
-            
-            if self.video_info is not None:
-                self.video_info['Transcript'] = (None, None)
-            
             return None, None
         except Exception as e:
             self.youtube_base.logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
-            
-            if self.video_info is not None:
-                self.video_info['Transcript'] = (None, None)
-            
             return None, None
 
     def save_video_info_to_file(self, root_dir: str) -> Optional[str]:
-        if not self.video_info:
+        if not self._info_fetched:
+            self.fetch_video_info()
+
+        if not self.title:
             self.youtube_base.logger.warning(f"No video info available to save for video ID: {self.video_id}")
             return None
 
-        title = self.video_info['Title']
-        transcript_language = self.video_info.get('Transcript', [None, None])[1] or 'en'
-
-        valid_title = sanitize_filename(title, max_length=100)
+        transcript_language = self.transcript[1] if self.transcript else 'en'
+        valid_title = sanitize_filename(self.title, max_length=100)
 
         file_name = f"{valid_title}_{transcript_language}.json"
         file_path = os.path.join(root_dir, file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
-        serializable_info = self.to_dict()
-
         with open(file_path, 'w', encoding='utf-8') as f:
-            json.dump(serializable_info, f, ensure_ascii=False, indent=2)
+            json.dump(self.to_dict(), f, ensure_ascii=False, indent=2)
         
         return file_path
+
+    def set_published_at(self, value: str | datetime):
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        self.published_at = value

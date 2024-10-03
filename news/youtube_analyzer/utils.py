@@ -1,5 +1,5 @@
 import pytz
-from datetime import datetime
+from datetime import datetime, date
 import re
 import logging
 from isodate import parse_duration
@@ -67,3 +67,29 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     
     # Trim the filename if it's too long
     return sanitized[:max_length]
+
+def get_year_date_range(year: int = None) -> tuple[datetime, datetime]:
+    """
+    Get the start and end dates for a given year.
+    
+    If no year is provided or if the provided year is the current year,
+    the end date will be set to today.
+
+    Args:
+        year (int, optional): The year for which to get the date range. 
+                              If None, the current year is used.
+
+    Returns:
+        tuple[datetime, datetime]: A tuple containing the start and end dates for the specified year.
+    """
+    current_year = date.today().year
+    
+    if year is None or year == current_year:
+        year = current_year
+        start_date = datetime(year, 1, 1)
+        end_date = datetime.now()
+    else:
+        start_date = datetime(year, 1, 1)
+        end_date = datetime(year, 12, 31, 23, 59, 59)
+    
+    return start_date, end_date

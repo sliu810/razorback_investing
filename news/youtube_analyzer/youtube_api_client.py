@@ -3,13 +3,14 @@ import logging
 from googleapiclient.discovery import build
 from typing import Optional
 
-class YouTubeBase:
-    def __init__(self, api_key: Optional[str] = None, timezone: str = 'America/Chicago'):
+class YouTubeAPIClient:
+    def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv('YOUTUBE_API_KEY')
         if not self.api_key:
             raise ValueError("No API key found. Provide an API key or set the YOUTUBE_API_KEY environment variable.")
-        self.youtube = build('youtube', 'v3', developerKey=self.api_key)
-        self.timezone = timezone
+        
+        # Build the YouTube service
+        self.youtube = build('youtube', 'v3', developerKey=self.api_key, cache_discovery=False)
         
         # Create a logger for this class
         self.logger = logging.getLogger(self.__class__.__name__)

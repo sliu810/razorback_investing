@@ -3,18 +3,18 @@ from datetime import datetime
 import pytz
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from utils import iso_duration_to_minutes, sanitize_filename
-from youtube_base import YouTubeBase
+from youtube_api_client import YouTubeAPIClient
 import os
 import json
 from typing import Optional, Tuple
 
 class Video:
-    def __init__(self, video_id: str, youtube_base: Optional[YouTubeBase] = None, transcript_language: str = 'en'):
+    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
         self.video_id: str = video_id
-        self.youtube_base: YouTubeBase = youtube_base or YouTubeBase()
+        self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
         self.transcript_language: str = transcript_language
+        self.timezone = pytz.timezone(timezone)
         self.title: Optional[str] = None
-        self.description: Optional[str] = None
         self.published_at: Optional[datetime] = None
         self.duration_minutes: Optional[float] = None
         self.channel_id: Optional[str] = None
@@ -27,27 +27,25 @@ class Video:
             return True
 
         try:
-            video_request = self.youtube_base.create_videos_request(
+            video_request = self.youtube_api_client.create_videos_request(
                 part="snippet,contentDetails",
                 id=self.video_id
             )
-            video_response = self.youtube_base.execute_api_request(video_request)
+            video_response = self.youtube_api_client.execute_api_request(video_request)
 
             if not video_response['items']:
-                self.youtube_base.logger.warning(f"No video found for ID: {self.video_id}")
+                self.youtube_api_client.logger.warning(f"No video found for ID: {self.video_id}")
                 return False
 
             video_data = video_response['items'][0]
             snippet = video_data['snippet']
             content_details = video_data['contentDetails']
 
-            local_timezone = pytz.timezone(self.youtube_base.timezone)
             self.published_at = datetime.strptime(
                 snippet['publishedAt'], "%Y-%m-%dT%H:%M:%SZ"
-            ).replace(tzinfo=pytz.UTC).astimezone(local_timezone)
+            ).replace(tzinfo=pytz.UTC).astimezone(self.timezone)
 
             self.title = snippet['title']
-            self.description = snippet['description']
             self.duration_minutes = iso_duration_to_minutes(content_details['duration'])
             self.channel_id = snippet['channelId']
             self.channel_name = snippet['channelTitle']
@@ -56,7 +54,7 @@ class Video:
             self._info_fetched = True
             return True
         except Exception as e:
-            self.youtube_base.logger.error(f"An error occurred while fetching video info for {self.video_id}: {str(e)}")
+            self.youtube_api_client.logger.error(f"An error occurred while fetching video info for {self.video_id}: {str(e)}")
             return False
 
     def get_video_title(self) -> Optional[str]:
@@ -71,7 +69,6 @@ class Video:
         return {
             'Video ID': self.video_id,
             'Title': self.title,
-            'Description': self.description,
             'Published At': self.published_at.isoformat() if self.published_at else None,
             'Duration (minutes)': self.duration_minutes,
             'Channel ID': self.channel_id,
@@ -101,7 +98,7 @@ class Video:
                 transcript = transcript_list.find_transcript([self.transcript_language])
             except NoTranscriptFound:
                 if self.transcript_language != 'en':
-                    self.youtube_base.logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
+                    self.youtube_api_client.logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
                     transcript = transcript_list.find_transcript(['en'])
                 else:
                     raise
@@ -111,18 +108,18 @@ class Video:
             
             return transformed_transcript, transcript.language_code
         except (TranscriptsDisabled, NoTranscriptFound):
-            self.youtube_base.logger.warning(f"No transcript available for video ID: {self.video_id}")
+            self.youtube_api_client.logger.warning(f"No transcript available for video ID: {self.video_id}")
             return None, None
         except Exception as e:
-            self.youtube_base.logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
+            self.youtube_api_client.logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
             return None, None
 
-    def save_video_info_to_file(self, root_dir: str) -> Optional[str]:
+    def serialize_video_to_file(self, root_dir: str) -> Optional[str]:
         if not self._info_fetched:
             self.fetch_video_info()
 
         if not self.title:
-            self.youtube_base.logger.warning(f"No video info available to save for video ID: {self.video_id}")
+            self.youtube_api_client.logger.warning(f"No video info available to save for video ID: {self.video_id}")
             return None
 
         transcript_language = self.transcript[1] if self.transcript else 'en'

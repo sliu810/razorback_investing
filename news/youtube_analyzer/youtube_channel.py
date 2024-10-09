@@ -4,7 +4,7 @@ import pytz
 import pandas as pd
 import os
 from typing import Dict, Optional, List
-from youtube_base import YouTubeBase
+from news.youtube_analyzer.youtube_api_client import YouTubeBase
 from news.youtube_analyzer.video import YoutubeVideo
 from utils import sanitize_filename
 

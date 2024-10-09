@@ -1,8 +1,9 @@
 import pytz
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 import re
 import logging
 from isodate import parse_duration
+from typing import Tuple
 
 def iso_duration_to_minutes(iso_duration):
     """
@@ -68,7 +69,7 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     # Trim the filename if it's too long
     return sanitized[:max_length]
 
-def get_year_date_range(year: int = None) -> tuple[datetime, datetime]:
+def get_start_end_dates_for_year(year: int = None) -> tuple[datetime, datetime]:
     """
     Get the start and end dates for a given year.
     
@@ -91,5 +92,40 @@ def get_year_date_range(year: int = None) -> tuple[datetime, datetime]:
     else:
         start_date = datetime(year, 1, 1)
         end_date = datetime(year, 12, 31, 23, 59, 59)
+    
+    return start_date, end_date
+
+def get_start_end_dates_for_period(period_type: str, number: int = 1, timezone: str = 'America/Chicago') -> Tuple[datetime, datetime]:
+    """
+    Generate a date range based on the specified period type and number.
+
+    Args:
+        period_type (str): The type of period ('today', 'days', 'weeks', 'months').
+        number (int): The number of periods to go back (default is 1).
+        timezone (str): The timezone to use for the date range (default is 'America/Chicago').
+
+    Returns:
+        Tuple[datetime, datetime]: A tuple containing the start and end dates.
+
+    Raises:
+        ValueError: If an unsupported period type is specified.
+    """
+    local_timezone = pytz.timezone(timezone)
+    now = datetime.now(pytz.utc).astimezone(local_timezone)
+    
+    if period_type == 'today':
+        start_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period_type == 'days':
+        start_date = (now - timedelta(days=number-1)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period_type == 'weeks':
+        start_date = (now - timedelta(weeks=number)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    elif period_type == 'months':
+        start_date = (now - timedelta(days=30*number)).replace(hour=0, minute=0, second=0, microsecond=0)
+        end_date = now.replace(hour=23, minute=59, second=59, microsecond=999999)
+    else:
+        raise ValueError("Unsupported period type specified.")
     
     return start_date, end_date

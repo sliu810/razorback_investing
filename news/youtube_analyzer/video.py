@@ -6,7 +6,7 @@ from utils import iso_duration_to_minutes, sanitize_filename
 from youtube_api_client import YouTubeAPIClient
 import os
 import json
-from typing import Optional, Tuple
+from typing import Optional, Tuple, Union
 
 class Video:
     def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
@@ -134,7 +134,7 @@ class Video:
         
         return file_path
 
-    def set_published_at(self, value: str | datetime):
+    def set_published_at(self, value: Union[str, datetime]):
         if isinstance(value, str):
             value = datetime.fromisoformat(value.replace('Z', '+00:00'))
         self.published_at = value

@@ -69,7 +69,7 @@ def sanitize_filename(filename: str, max_length: int = 255) -> str:
     # Trim the filename if it's too long
     return sanitized[:max_length]
 
-def get_start_end_dates_for_year(year: int = None) -> tuple[datetime, datetime]:
+def get_start_end_dates_for_year(year: int = None) -> Tuple[datetime, datetime]:
     """
     Get the start and end dates for a given year.
     
@@ -81,7 +81,7 @@ def get_start_end_dates_for_year(year: int = None) -> tuple[datetime, datetime]:
                               If None, the current year is used.
 
     Returns:
-        tuple[datetime, datetime]: A tuple containing the start and end dates for the specified year.
+        Tuple[datetime, datetime]: A tuple containing the start and end dates for the specified year.
     """
     current_year = date.today().year
     

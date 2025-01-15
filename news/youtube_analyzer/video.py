@@ -76,7 +76,7 @@ class Video:
             'Transcript': self.transcript
         }
 
-    def transform_transcript_for_readability(self, transcript: str, language: str) -> str:
+    def _transform_transcript_for_readability(self, transcript: str, language: str) -> str:
         if not transcript or language != 'en':
             return transcript
 
@@ -91,6 +91,12 @@ class Video:
         return transcript
 
     def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
+        # First check if we already have the transcript
+        if self.transcript is not None:
+            logging.debug(f"Returning cached transcript for video {self.video_id}")
+            return self.transcript
+
+        logging.debug(f"Fetching transcript from YouTube API for video {self.video_id}")
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
             
@@ -104,14 +110,18 @@ class Video:
                     raise
 
             full_transcript = ' '.join([entry['text'] for entry in transcript.fetch()])
-            transformed_transcript = self.transform_transcript_for_readability(full_transcript, transcript.language_code)
+            transformed_transcript = self._transform_transcript_for_readability(full_transcript, transcript.language_code)
             
-            return transformed_transcript, transcript.language_code
+            self.transcript = (transformed_transcript, transcript.language_code)  # Cache the result
+            logging.debug(f"Successfully fetched and cached transcript for video {self.video_id}")
+            return self.transcript
         except (TranscriptsDisabled, NoTranscriptFound):
             self.youtube_api_client.logger.warning(f"No transcript available for video ID: {self.video_id}")
+            self.transcript = (None, None)  # Cache the negative result
             return None, None
         except Exception as e:
             self.youtube_api_client.logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
+            self.transcript = (None, None)  # Cache the negative result
             return None, None
 
     def serialize_video_to_file(self, root_dir: str) -> Optional[str]:
@@ -138,3 +148,21 @@ class Video:
         if isinstance(value, str):
             value = datetime.fromisoformat(value.replace('Z', '+00:00'))
         self.published_at = value
+
+    @classmethod
+    def from_json_file(cls, file_path: str) -> 'Video':
+        with open(file_path, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        
+        video = cls(video_id=data['Video ID'])
+        video.title = data['Title']
+        video.duration_minutes = data['Duration (minutes)']
+        video.channel_id = data['Channel ID']
+        video.channel_name = data['Channel Name']
+        video.transcript = data['Transcript']
+        
+        if data['Published At']:
+            video.set_published_at(data['Published At'])
+        
+        video._info_fetched = True  # Mark as fetched since we have the data
+        return video

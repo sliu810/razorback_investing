@@ -9,6 +9,10 @@ import json
 from typing import Optional, Tuple, Union, Dict
 import time
 
+# Set up logging
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
+
 class Video:
     def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
         self.video_id: str = video_id
@@ -171,13 +175,19 @@ class Video:
 
     def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
         """Fetch transcript with retries"""
+        logger.debug(f"Starting transcript fetch for video {self.video_id}")
+        
         for attempt in range(max_retries):
             try:
+                logger.debug(f"Attempt {attempt + 1} of {max_retries}")
                 transcript_list = YouTubeTranscriptApi.get_transcript(self.video_id)
+                logger.debug(f"Raw transcript list length: {len(transcript_list) if transcript_list else 0}")
                 
                 # Verify transcript is not empty
                 if not transcript_list:
+                    logger.warning(f"Attempt {attempt + 1}: Empty transcript list received")
                     if attempt < max_retries - 1:
+                        logger.debug(f"Waiting {retry_delay} seconds before retry")
                         time.sleep(retry_delay)
                         continue
                     return False
@@ -187,33 +197,44 @@ class Video:
                 for entry in transcript_list:
                     if 'text' in entry:
                         full_transcript += entry['text'] + " "
+                    else:
+                        logger.warning(f"Transcript entry missing 'text' field: {entry}")
+                
+                logger.debug(f"Combined transcript length: {len(full_transcript)}")
                 
                 # Verify final transcript is not empty
                 if not full_transcript.strip():
+                    logger.warning("Combined transcript is empty after processing")
                     if attempt < max_retries - 1:
+                        logger.debug(f"Waiting {retry_delay} seconds before retry")
                         time.sleep(retry_delay)
                         continue
                     return False
                 
                 self.transcript = full_transcript.strip()
+                logger.debug(f"Successfully fetched transcript. Final length: {len(self.transcript)}")
                 return True
                 
             except (TranscriptsDisabled, NoTranscriptFound) as e:
-                print(f"No transcript available: {str(e)}")
+                logger.error(f"No transcript available: {str(e)}")
                 return False
             except Exception as e:
-                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                logger.error(f"Attempt {attempt + 1} failed with error: {str(e)}")
                 if attempt < max_retries - 1:
+                    logger.debug(f"Waiting {retry_delay} seconds before retry")
                     time.sleep(retry_delay)
                     continue
                 return False
         
+        logger.error("All transcript fetch attempts failed")
         return False
 
     def update_metadata(self, metadata: Dict):
         """Update video metadata"""
+        logger.debug("Updating video metadata")
         self.metadata = metadata
         self.title = metadata.get('title', '')
         self.description = metadata.get('description', '')
         duration = metadata.get('duration', 'PT0M')
         self.duration_minutes = iso_duration_to_minutes(duration)
+        logger.debug(f"Metadata updated - Title: {self.title}, Duration: {self.duration_minutes}min")

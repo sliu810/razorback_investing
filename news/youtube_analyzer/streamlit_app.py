@@ -1,6 +1,10 @@
 import streamlit as st
 from youtube_client import YouTubeAnalysisClient
 from video_analyzer import TranscriptAnalysis
+import logging
+
+# Set up logging
+logger = logging.getLogger(__name__)
 
 # Custom CSS with even larger font sizes
 st.markdown("""
@@ -159,6 +163,16 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
     
     if not video:
         status_container.error("Could not process video")
+        logger.error(f"Failed to process video {video_id}")
+        return None
+    
+    # Debug log transcript content
+    logger.debug(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
+    logger.debug(f"First 100 chars of transcript: {video.transcript[:100] if video.transcript else 'EMPTY'}")
+    
+    if not video.transcript:
+        status_container.error("Transcript is empty")
+        logger.error(f"Empty transcript for video {video_id}")
         return None
     
     status_container.success("Video processed successfully!")

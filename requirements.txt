@@ -11,3 +11,4 @@ accelerate
 sentence-transformers
 llama-index-llms-mistralai
 llama-index-llms-openai
+youtube-transcript-api==0.6.1

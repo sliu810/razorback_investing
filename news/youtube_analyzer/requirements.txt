@@ -1,6 +1,8 @@
-streamlit
-youtube-transcript-api
-anthropic
-openai
-pydantic
-python-dotenv 
+streamlit>=1.32.0
+youtube-transcript-api>=0.6.1
+anthropic>=0.18.1
+openai>=1.12.0
+pydantic>=2.6.1
+python-dotenv>=1.0.0
+requests>=2.31.0
+isodate>=0.6.1 

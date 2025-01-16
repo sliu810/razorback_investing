@@ -161,7 +161,7 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
         status_container.error("Could not process video")
         return None
     
-    status_container.info("Video processed successfully!")
+    status_container.success("Video processed successfully!")
     st.session_state.video = video
     return video
 

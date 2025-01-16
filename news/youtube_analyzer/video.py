@@ -174,77 +174,58 @@ class Video:
         video._info_fetched = True  # Mark as fetched since we have the data
         return video
 
-    def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 2.0) -> bool:
+    def fetch_transcript(self, max_retries: int = 5, retry_delay: float = 3.0) -> bool:
         """Fetch transcript with retries"""
-        self.debug_info = []  # Clear previous debug info
+        self.debug_info = []
         
         for attempt in range(max_retries):
             try:
                 self.debug_info.append(f"Attempt {attempt + 1} to fetch transcript")
                 
-                # Direct approach first
+                # Add longer timeout and more retries
+                time.sleep(1.0)  # Add small delay before each attempt
+                
                 try:
                     transcript_data = YouTubeTranscriptApi.get_transcript(self.video_id)
                     self.debug_info.append(f"Direct transcript fetch successful")
-                except Exception as e:
-                    self.debug_info.append(f"Direct fetch failed: {str(e)}")
-                    # Try listing available transcripts
-                    transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
-                    available_langs = [t.language_code for t in transcript_list._manually_created_transcripts.values()]
-                    self.debug_info.append(f"Available languages: {available_langs}")
                     
-                    # Try to get English transcript
-                    if 'en' in available_langs:
-                        transcript_data = transcript_list.find_transcript(['en']).fetch()
-                    elif 'en-US' in available_langs:
-                        transcript_data = transcript_list.find_transcript(['en-US']).fetch()
-                    else:
-                        # Get first available transcript
-                        first_lang = available_langs[0]
-                        transcript_data = transcript_list.find_transcript([first_lang]).fetch()
-                        self.debug_info.append(f"Using language: {first_lang}")
-
-                # Check transcript data
-                if not transcript_data:
-                    self.debug_info.append("Empty transcript data received")
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        continue
-                    return False
-
-                # Store raw transcript data for debugging
-                self.raw_transcript_data = transcript_data
-                self.debug_info.append(f"Raw transcript entries: {len(transcript_data)}")
-
-                # Combine transcript pieces
-                full_transcript = ""
-                for entry in transcript_data:
-                    if 'text' in entry:
-                        full_transcript += entry['text'] + " "
-                    else:
-                        self.debug_info.append(f"Malformed entry: {entry}")
-
-                if not full_transcript.strip():
-                    self.debug_info.append("Empty transcript after processing")
-                    if attempt < max_retries - 1:
-                        time.sleep(retry_delay)
-                        continue
-                    return False
-
-                self.transcript = full_transcript.strip()
-                self.debug_info.append(f"Final transcript length: {len(self.transcript)}")
-                return True
-
-            except (TranscriptsDisabled, NoTranscriptFound) as e:
-                self.debug_info.append(f"No transcript available: {str(e)}")
-                return False
+                    # Process transcript immediately if successful
+                    if transcript_data:
+                        full_transcript = " ".join(entry['text'] for entry in transcript_data)
+                        self.transcript = full_transcript.strip()
+                        self.debug_info.append(f"Transcript processed, length: {len(self.transcript)}")
+                        return True
+                        
+                except Exception as e:
+                    if "Subtitles are disabled" in str(e):
+                        self.debug_info.append("Subtitles disabled, trying alternative method...")
+                        # Try listing available transcripts
+                        transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
+                        available_langs = [t.language_code for t in transcript_list._manually_created_transcripts.values()]
+                        self.debug_info.append(f"Found languages: {available_langs}")
+                        
+                        if available_langs:  # Only try if we found some transcripts
+                            for lang in ['en', 'en-US', *available_langs]:
+                                try:
+                                    transcript_data = transcript_list.find_transcript([lang]).fetch()
+                                    if transcript_data:
+                                        full_transcript = " ".join(entry['text'] for entry in transcript_data)
+                                        self.transcript = full_transcript.strip()
+                                        self.debug_info.append(f"Got transcript in {lang}, length: {len(self.transcript)}")
+                                        return True
+                                except:
+                                    continue
+                    
+                    self.debug_info.append(f"Attempt {attempt + 1} failed: {str(e)}")
+                    
             except Exception as e:
-                self.debug_info.append(f"Error: {str(e)}")
-                if attempt < max_retries - 1:
-                    time.sleep(retry_delay)
-                    continue
-                return False
-
+                self.debug_info.append(f"Error in attempt {attempt + 1}: {str(e)}")
+                
+            if attempt < max_retries - 1:
+                sleep_time = retry_delay * (attempt + 1)  # Exponential backoff
+                self.debug_info.append(f"Waiting {sleep_time}s before next attempt...")
+                time.sleep(sleep_time)
+        
         return False
 
     def update_metadata(self, metadata: Dict):

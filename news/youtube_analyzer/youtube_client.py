@@ -50,12 +50,25 @@ class YouTubeAnalysisClient:
         return claude, gpt4
     
     def process_video(self, video_id: str) -> Optional[Video]:
-        """Process YouTube video"""
-        video = Video(video_id)
-        if not video.fetch_video_info():
-            print(f"Could not fetch video info for {video_id}")
+        """Process a video and return Video object"""
+        try:
+            # Create Video object
+            video = Video(video_id)
+            
+            # Debug print
+            print("Created video object, fetching transcript...")
+            
+            # Fetch transcript first
+            if not video.fetch_transcript():
+                print(f"Failed to fetch transcript for {video_id}")
+            else:
+                print(f"Successfully fetched transcript")
+            
+            return video
+            
+        except Exception as e:
+            print(f"Error processing video: {str(e)}")
             return None
-        return video
     
     def analyze_text(self, 
                     processor: LLMProcessor, 

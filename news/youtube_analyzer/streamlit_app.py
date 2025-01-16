@@ -1,7 +1,11 @@
 import streamlit as st
+from typing import Optional
+from video import Video
 from youtube_client import YouTubeAnalysisClient
-from video_analyzer import TranscriptAnalysis
+from llm_processor import RoleRegistry, TaskRegistry
+from video_analyzer import TranscriptAnalysis, VideoAnalyzer, LLMConfig, AnalysisConfig
 import logging
+import sys
 
 # Set up logging
 logger = logging.getLogger(__name__)
@@ -200,12 +204,73 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
         
         status_container.success("Video processed successfully!")
         st.session_state.video = video
+        
+        # After video object creation
+        logger.debug("Created video object, fetching transcript...")
+        logger.debug(f"Initial video object: {video}")
+        
         return video
         
     except Exception as e:
         status_container.error(f"Error during processing: {str(e)}")
         st.error(f"Detailed error: {str(e)}")
         return None
+
+def init_analysis_settings():
+    """Initialize analysis settings in sidebar"""
+    st.sidebar.subheader("Analysis Settings")
+
+    # Role selection with consistent styling
+    st.sidebar.markdown("##### Role")
+    role = st.sidebar.radio(
+        label="",
+        options=["research_assistant", "financial_analyst"],
+        format_func=lambda x: "Research Assistant" if x == "research_assistant" else "Financial Analyst"
+    )
+    
+    # Show role description with consistent styling
+    role_info = RoleRegistry.get_research_assistant() if role == "research_assistant" else RoleRegistry.get_financial_analyst()
+    with st.sidebar.expander("Role Description"):
+        st.markdown(f"**Description:** {role_info.description}")
+    
+    # Task selection with consistent styling
+    st.sidebar.markdown("##### Task")
+    task = st.sidebar.radio(
+        label="",
+        options=["summarize_transcript"],
+        format_func=lambda x: "Summarize Transcript"
+    )
+    
+    # Show task description with consistent styling
+    task_info = TaskRegistry().get_summarize_transcript()
+    with st.sidebar.expander("Task Description"):
+        st.markdown(f"**Description:** {task_info.description}")
+    
+    return role
+
+def display_analysis_results(video, analysis_results):
+    """Display video analysis results"""
+    logger.debug(f"Raw video object: {video}")
+    if video and analysis_results:
+        logger.debug(f"Displaying video with title: {video.title}")
+        st.header("Analysis Results")
+        
+        # Video information section
+        st.subheader("Video Information")
+        col1, col2 = st.columns([1, 2])
+        with col1:
+            st.image(video.thumbnail_url, use_column_width=True)
+        with col2:
+            st.write(f"**Title:** {video.title}")  # This line shows None
+            st.write(f"**Channel:** {video.channel_title}")
+            st.write(f"**Published:** {video.published_at}")
+            st.write(f"**Duration:** {video.duration}")
+            
+        # Analysis results section
+        st.subheader("Content Analysis")
+        for model, result in analysis_results.items():
+            with st.expander(f"{model} Analysis"):
+                st.markdown(result)
 
 def main():
     st.title("YouTube Video Analyzer")
@@ -223,7 +288,7 @@ def main():
         
         # Role and Task configuration
         st.subheader("Analysis Settings")
-        role = st.text_input("Role", value="content_summarizer")
+        role = init_analysis_settings()
         task = st.text_input("Task", value="summarize_transcript")
         
         if st.button("Analyze Video"):

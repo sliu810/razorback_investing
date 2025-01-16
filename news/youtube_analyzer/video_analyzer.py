@@ -292,14 +292,14 @@ class VideoAnalyzer:
     ) -> Optional[TranscriptAnalysis]:
         """Create single analysis with error handling"""
         try:
-            analysis = TranscriptAnalysis(video)  # Create with video
-            analysis.model_provider = provider    # Set provider
-            analysis.model_name = model          # Set model name
+            analysis = TranscriptAnalysis(video)
+            analysis.model_provider = provider
+            analysis.model_name = model
             
             # Get summary from processor
             summary = processor.process_text(
                 video.transcript,
-                role_name="content_summarizer",
+                role_name="research_assistant",
                 task_name="summarize_transcript"
             )
             
@@ -307,9 +307,8 @@ class VideoAnalyzer:
                 logger.error("Received empty summary from processor")
                 return None
                 
-            # Set all required fields
             analysis.summary = summary
-            analysis.role_used = "content_summarizer"
+            analysis.role_used = "research_assistant"
             analysis.task_used = "summarize_transcript"
             analysis.analyzed_at = datetime.now()
             

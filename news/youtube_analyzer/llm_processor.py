@@ -32,19 +32,38 @@ class RoleRegistry:
     """Registry of predefined AI roles"""
     
     @classmethod
-    def get_content_summarizer(cls) -> Role:
+    def get_research_assistant(cls) -> Role:
         return Role(
-            name="content_summarizer",
-            description="Expert in creating concise summaries",
-            system_prompt="You are an expert content summarizer. Create clear, structured summaries while retaining key information."
+            name="research_assistant",
+            description="General research assistance for various topics",
+            system_prompt="""You are a skilled research assistant with expertise in analyzing and synthesizing information.
+            Your responses should be:
+            - Well-structured and organized
+            - Focused on key findings and insights
+            - Supported by evidence from the source material
+            - Clear and concise
+            - Objective and unbiased"""
         )
     
     @classmethod
     def get_financial_analyst(cls) -> Role:
         return Role(
             name="financial_analyst",
-            description="Expert in analyzing financial content",
-            system_prompt="You are an expert financial analyst. Analyze content for key financial insights, trends, and implications."
+            description="Investment research and market analysis specialist",
+            system_prompt="""You are an experienced financial analyst working at a top hedge fund.
+            Your responses should be:
+            - Well-structured and organized
+            - Focused on key findings and insights
+            - Supported by evidence from the source material
+            - Clear and concise
+            - Objective and unbiased
+            
+            When analyzing content, consider:
+            1. Financial metrics and performance
+            2. Market positioning and competitive advantages
+            3. Industry trends and market conditions
+            4. Management strategy and execution
+            5. Potential risks and opportunities"""
         )
     
     # Add more predefined roles as class methods
@@ -126,7 +145,7 @@ class LLMProcessor:
     def _register_roles_and_tasks(self):
         """Register default roles and tasks"""
         # Register default roles
-        self.register_role("content_summarizer")
+        self.register_role("research_assistant")
         self.register_role("financial_analyst")
         
         # Register default tasks
@@ -144,11 +163,34 @@ class LLMProcessor:
         logger.info(f"Registered task: {task}")
 
     def process_text(self, text: str, role_name: str, task_name: str) -> Optional[str]:
+        """Process text using specified role and task"""
         try:
-            prompt = self._create_prompt(text, role_name, task_name)
-            response = self._get_response(prompt)
-            logger.info("Text processed successfully")
-            return response
+            # Get role and task
+            role = RoleRegistry.get_research_assistant() if role_name == "research_assistant" else RoleRegistry.get_financial_analyst()
+            task = TaskRegistry.get_summarize_transcript()
+            
+            if self.config.provider == "anthropic":
+                response = self.client.messages.create(
+                    model=self.config.model_name,
+                    max_tokens=4000,
+                    system=role.system_prompt,
+                    messages=[{
+                        "role": "user",
+                        "content": task.prompt_template.format(text=text)
+                    }]
+                )
+                return response.content[0].text
+                
+            elif self.config.provider == "openai":
+                response = self.client.chat.completions.create(
+                    model=self.config.model_name,
+                    messages=[
+                        {"role": "system", "content": role.system_prompt},
+                        {"role": "user", "content": task.prompt_template.format(text=text)}
+                    ]
+                )
+                return response.choices[0].message.content
+                
         except Exception as e:
             logger.error(f"Error processing text: {str(e)}")
             return None
@@ -178,7 +220,7 @@ Important formatting rules:
 """
 
         role_prompts = {
-            "content_summarizer": f"""As a content summarizer, analyze this video transcript and provide a structured summary.
+            "research_assistant": f"""As a research assistant, analyze this video transcript and provide a structured summary.
 
 {format_instructions}
 
@@ -193,7 +235,7 @@ Transcript:
 {text}"""
         }
 
-        return role_prompts.get(role_name, role_prompts["content_summarizer"])
+        return role_prompts.get(role_name, role_prompts["research_assistant"])
 
     def _get_response(self, prompt: str) -> Optional[str]:
         """Get response from the appropriate model"""
@@ -235,18 +277,15 @@ Transcript:
             question: Question to ask
             context: The text content to analyze
         """
-        # Create a focused prompt that combines the question and context
-        combined_text = f"""Question: {question}\n\nRelevant Context: {context}"""
-        
         try:
             if self.config.provider == "anthropic":
                 response = self.client.messages.create(
                     model=self.config.model_name,
-                    max_tokens=100,  # Limit response length
-                    temperature=0.7,
+                    max_tokens=100,
+                    temperature=0.3,  # Lower temperature for more focused responses
                     messages=[{
                         "role": "user",
-                        "content": f"Answer this question briefly: {question}\n\nContext: {context}"
+                        "content": f"Answer this question briefly in 1-2 sentences maximum: {question}\n\nContext: {context}"
                     }]
                 )
                 return response.content[0].text
@@ -254,11 +293,11 @@ Transcript:
             elif self.config.provider == "openai":
                 response = self.client.chat.completions.create(
                     model=self.config.model_name,
-                    temperature=0.7,
-                    max_tokens=100,  # Limit response length
+                    temperature=0.3,  # Lower temperature for more focused responses
+                    max_tokens=100,
                     messages=[{
                         "role": "system",
-                        "content": "You are a helpful assistant. Give brief answers."
+                        "content": "You are a helpful assistant. Give very brief, direct answers in 1-2 sentences maximum."
                     },
                     {
                         "role": "user",

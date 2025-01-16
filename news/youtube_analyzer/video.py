@@ -235,3 +235,7 @@ class Video:
         self.description = metadata.get('description', '')
         duration = metadata.get('duration', 'PT0M')
         self.duration_minutes = iso_duration_to_minutes(duration)
+
+    def __str__(self):
+        """String representation of Video object"""
+        return f"Video(id='{self.video_id}', title='{self.title}', url='{self.url}')"

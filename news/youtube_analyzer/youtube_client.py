@@ -55,10 +55,14 @@ class YouTubeAnalysisClient:
             # Create Video object
             video = Video(video_id)
             
-            # Debug print
-            print("Created video object, fetching transcript...")
+            # Fetch video info first
+            if not video.fetch_video_info():
+                print(f"Failed to fetch video info for {video_id}")
+                return None
             
-            # Fetch transcript first
+            print(f"Created video object with title: {video.title}")
+            
+            # Fetch transcript
             if not video.fetch_transcript():
                 print(f"Failed to fetch transcript for {video_id}")
             else:
@@ -73,7 +77,7 @@ class YouTubeAnalysisClient:
     def analyze_text(self, 
                     processor: LLMProcessor, 
                     text: str,
-                    role_name: str = "content_summarizer",
+                    role_name: str = "research_assistant",
                     task_name: str = "summarize_transcript") -> str:
         """Analyze text using specified processor"""
         return processor.process_text(
@@ -90,4 +94,31 @@ class YouTubeAnalysisClient:
         return processor.chat(
             question=question,
             context=context
-        ) 
+        )
+    
+    def get_video_details(self, video_id: str) -> Video:
+        """Get video details from YouTube API"""
+        try:
+            request = self.youtube.videos().list(
+                part="snippet,contentDetails",
+                id=video_id
+            )
+            response = request.execute()
+            
+            if response['items']:
+                video_data = response['items'][0]
+                title = video_data['snippet']['title']
+                logger.debug(f"Found video title: {title}")  # Add just this one debug line
+                
+                return Video(
+                    id=video_id,
+                    title=title,
+                    channel_title=video_data['snippet']['channelTitle'],
+                    published_at=video_data['snippet']['publishedAt'],
+                    duration=video_data['contentDetails']['duration'],
+                    thumbnail_url=video_data['snippet']['thumbnails']['medium']['url']
+                )
+            return None
+        except Exception as e:
+            logger.error(f"Error getting video details: {str(e)}")
+            return None 

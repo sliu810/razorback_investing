@@ -190,17 +190,23 @@ def main():
                 video = show_processing_steps(video_id, use_claude, use_gpt4)
                 
                 if video:
+                    st.session_state.analysis_results = {}
                     # Process with selected models
                     for name, processor in st.session_state.processors.items():
                         if processor:
                             status_container.info(f"Analyzing with {name}...")
-                            # Do the actual analysis
-                            analysis = st.session_state.client.analyze_text(
+                            # Create TranscriptAnalysis object and populate it
+                            analysis_obj = TranscriptAnalysis(video)
+                            analysis_obj.model_provider = processor.config.provider
+                            analysis_obj.model_name = processor.config.model_name
+                            analysis_obj.summary = st.session_state.client.analyze_text(
                                 processor=processor,
                                 text=video.transcript,
                                 role_name=role,
                                 task_name=task
                             )
+                            # Store the HTML version
+                            st.session_state.analysis_results[name] = analysis_obj.get_html()
                     
                     # Show completion after all analyses are done
                     status_container.success("Analysis completed successfully!")
@@ -210,23 +216,17 @@ def main():
     
     # Analysis Tab
     with tab1:
-        if st.session_state.video and st.session_state.processors:
-            for name, processor in st.session_state.processors.items():
-                if processor:
-                    with st.expander(f"{name} Analysis"):
-                        # Create TranscriptAnalysis object
-                        analysis_obj = TranscriptAnalysis(st.session_state.video)
-                        analysis_obj.model_provider = processor.config.provider
-                        analysis_obj.model_name = processor.config.model_name
-                        analysis_obj.summary = st.session_state.client.analyze_text(
-                            processor=processor,
-                            text=st.session_state.video.transcript,
-                            role_name=role,
-                            task_name=task
-                        )
-                        
-                        # Display formatted HTML
-                        st.markdown(analysis_obj.get_html(), unsafe_allow_html=True)
+        if st.session_state.video and hasattr(st.session_state, 'analysis_results'):
+            # Create placeholders for analysis results
+            analysis_placeholders = {}
+            for name in st.session_state.analysis_results:
+                with st.expander(f"{name} Analysis"):
+                    analysis_placeholders[name] = st.empty()
+                    # Use unsafe_allow_html=True to render HTML
+                    analysis_placeholders[name].markdown(
+                        st.session_state.analysis_results[name],
+                        unsafe_allow_html=True
+                    )
             
             with st.expander("Full Transcript"):
                 st.text(st.session_state.video.transcript)

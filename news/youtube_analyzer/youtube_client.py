@@ -15,14 +15,14 @@ class YouTubeAnalysisClient:
         """Initialize and add processors to analyzer"""
         claude = LLMProcessor(LLMConfig(
             provider="anthropic",
-            model_name="claude-3-opus-20240229",
+            model_name="claude-3-5-sonnet-20241022",
             temperature=0.7,
             max_tokens=4000
         ))
         
         gpt4 = LLMProcessor(LLMConfig(
             provider="openai",
-            model_name="gpt-4-0125-preview",
+            model_name="gpt-4o",
             temperature=0.7,
             max_tokens=4000
         ))

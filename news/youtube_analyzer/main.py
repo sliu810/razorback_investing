@@ -15,8 +15,8 @@ def main():
     parser.add_argument('--provider', choices=['openai', 'anthropic'], help='Provider for analysis')
     parser.add_argument('--chat_provider', choices=['openai', 'anthropic'], default='openai',
                       help='Provider for chat (default: openai)')
-    parser.add_argument('--chat_model', default='gpt-4-0125-preview',
-                      help='Model name for chat (default: gpt-4-0125-preview)')
+    parser.add_argument('--chat_model', default='gpt-4o',
+                      help='Model name for chat (default: gpt-4o)')
     
     args = parser.parse_args()
     

@@ -56,10 +56,26 @@ class TaskRegistry:
     def get_summarize_transcript(cls) -> Task:
         return Task(
             name="summarize_transcript",
-            description="Create a structured summary with topics and takeaways",
-            prompt_template="""Analyze and summarize this transcript into clear sections with bullet points.
-            Focus on key topics discussed and main takeaways.
-            Use clear headings and bullet points for each section.
+            description="Create a factual summary with key data points",
+            prompt_template="""Create a clear, factual summary of this transcript. 
+            Include specific numbers, data points, and concrete examples when they are mentioned.
+
+            Guidelines:
+            1. Focus on factual information and key insights
+            2. Include any mentioned statistics, numbers, or data points
+            3. Mention specific examples when available
+            4. If dates or timeframes are mentioned, include them
+            5. Organize into clear sections with bullet points
+
+            Format your response as:
+            [Section Title]
+            • Key insight or finding
+            • Data point or specific example (if mentioned)
+            • Important fact or development
+
+            [Another Section]
+            • Continue same format...
+
             Here's the transcript:
             {text}"""
         )
@@ -86,8 +102,8 @@ class LLMProcessor:
     
     # Supported models by provider
     SUPPORTED_MODELS = {
-        "openai": ["gpt-4-0125-preview", "gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
-        "anthropic": ["claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240229"]
+        "openai": ["gpt-4o","gpt-4-0125-preview", "gpt-4-turbo-preview", "gpt-4", "gpt-3.5-turbo"],
+        "anthropic": ["claude-3-5-sonnet-20241022","claude-3-opus-20240229", "claude-3-sonnet-20240229", "claude-3-haiku-20240229"]
     }
 
     def __init__(self, config: LLMConfig):

@@ -2,6 +2,7 @@ from video_analyzer import VideoAnalyzer, LLMConfig, AnalysisConfig
 from video import Video
 from llm_processor import LLMProcessor
 from typing import Dict, Optional, Tuple
+import os
 
 class YouTubeAnalysisClient:
     """Client class that uses VideoAnalyzer for YouTube videos"""
@@ -10,6 +11,19 @@ class YouTubeAnalysisClient:
         self.analyzer = VideoAnalyzer(
             config=AnalysisConfig(output_dir="outputs")
         )
+        
+        # Initialize with API key from environment or Streamlit secrets
+        try:
+            import streamlit as st
+            api_key = os.getenv("YOUTUBE_API_KEY") or st.secrets["YOUTUBE_API_KEY"]
+            if not api_key:
+                raise ValueError("YouTube API key not found")
+            
+            # Initialize YouTube API client
+            self.youtube_client = YouTubeAPIClient(api_key)
+        except Exception as e:
+            print(f"Failed to initialize YouTube API client: {str(e)}")
+            raise
     
     def setup_processors(self) -> Tuple[LLMProcessor, LLMProcessor]:
         """Initialize and add processors to analyzer"""

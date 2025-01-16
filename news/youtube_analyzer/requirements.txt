@@ -1,0 +1,6 @@
+streamlit
+youtube-transcript-api
+anthropic
+openai
+pydantic
+python-dotenv 

@@ -56,27 +56,26 @@ class TaskRegistry:
     def get_summarize_transcript(cls) -> Task:
         return Task(
             name="summarize_transcript",
-            description="Create a factual summary with key data points",
-            prompt_template="""Create a clear, factual summary of this transcript. 
-            Include specific numbers, data points, and concrete examples when they are mentioned.
+            description="Create a concise, specific summary with key data",
+            prompt_template="""Provide a direct, specific summary of this transcript. Be concise and get straight to the point.
 
             Guidelines:
-            1. Focus on factual information and key insights
-            2. Include any mentioned statistics, numbers, or data points
-            3. Mention specific examples when available
-            4. If dates or timeframes are mentioned, include them
-            5. Organize into clear sections with bullet points
+            1. Start each point with specific information (avoid vague statements)
+            2. Include exact numbers and data points when mentioned
+            3. Use precise terms instead of general ones
+            4. State specific timeframes and dates when given
+            5. Keep sections focused and brief
 
-            Format your response as:
-            [Section Title]
-            • Key insight or finding
-            • Data point or specific example (if mentioned)
-            • Important fact or development
+            Format:
+            [Key Topic]
+            • Specific point with exact details
+            • Precise data or example
+            • Concrete fact or finding
 
-            [Another Section]
-            • Continue same format...
+            [Next Topic]
+            • Continue with specific points...
 
-            Here's the transcript:
+            Transcript:
             {text}"""
         )
     

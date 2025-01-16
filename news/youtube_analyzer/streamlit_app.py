@@ -150,44 +150,62 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
     status_container = st.empty()
     debug_container = st.empty()
     
-    # Step 1: Initialize processors
-    status_container.info("Setting up processors...")
-    claude, gpt4 = st.session_state.client.setup_processors()
-    st.session_state.processors = {
-        "Claude": claude if use_claude else None,
-        "GPT-4": gpt4 if use_gpt4 else None
-    }
-    
-    # Step 2: Process video
-    status_container.info("Fetching video information...")
-    video = st.session_state.client.process_video(video_id)
-    
-    if not video:
-        status_container.error("Could not process video")
-        debug_container.error("Debug: Video processing failed")
-        return None
-    
-    # Debug information
-    with st.expander("Debug Information"):
-        st.text(f"Video ID: {video_id}")
-        st.text(f"Title: {video.title}")
-        st.text(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
-        st.text(f"First 200 chars of transcript: {video.transcript[:200] if video.transcript else 'EMPTY'}")
-        st.text(f"Available processors: {list(st.session_state.processors.keys())}")
-        st.text(f"Metadata: {video.metadata}")
+    try:
+        # Step 1: Initialize processors
+        status_container.info("Setting up processors...")
+        claude, gpt4 = st.session_state.client.setup_processors()
+        st.session_state.processors = {
+            "Claude": claude if use_claude else None,
+            "GPT-4": gpt4 if use_gpt4 else None
+        }
         
-        # Add raw transcript data
-        if hasattr(video, '_raw_transcript'):
-            st.text(f"Raw transcript data: {video._raw_transcript}")
-    
-    if not video.transcript:
-        status_container.error("Transcript is empty")
-        debug_container.error("Debug: Empty transcript")
+        # Step 2: Process video
+        status_container.info("Fetching video information...")
+        
+        # Debug: Check client initialization
+        with st.expander("Debug Information"):
+            st.text("=== Client Setup ===")
+            st.text(f"Client type: {type(st.session_state.client)}")
+            st.text(f"YouTube API initialized: {hasattr(st.session_state.client, 'youtube_client')}")
+            
+            st.text("\n=== Processing Video ===")
+            st.text(f"Processing video ID: {video_id}")
+            
+            # Process video and capture intermediate results
+            video = st.session_state.client.process_video(video_id)
+            
+            st.text("\n=== Video Object ===")
+            st.text(f"Video object created: {video is not None}")
+            if video:
+                st.text(f"Video ID: {video.video_id}")
+                st.text(f"Title: {video.title}")
+                st.text(f"Metadata present: {bool(video.metadata)}")
+                st.text(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
+                st.text(f"First 200 chars: {video.transcript[:200] if video.transcript else 'EMPTY'}")
+                if hasattr(video, 'debug_info'):
+                    st.text("\n=== Transcript Debug Info ===")
+                    for info in video.debug_info:
+                        st.text(f"  - {info}")
+            
+            st.text("\n=== Available Processors ===")
+            st.text(f"Processors: {list(st.session_state.processors.keys())}")
+            
+        if not video:
+            status_container.error("Could not process video")
+            return None
+        
+        if not video.transcript:
+            status_container.error("Transcript is empty")
+            return None
+        
+        status_container.success("Video processed successfully!")
+        st.session_state.video = video
+        return video
+        
+    except Exception as e:
+        status_container.error(f"Error during processing: {str(e)}")
+        st.error(f"Detailed error: {str(e)}")
         return None
-    
-    status_container.success("Video processed successfully!")
-    st.session_state.video = video
-    return video
 
 def main():
     st.title("YouTube Video Analyzer")

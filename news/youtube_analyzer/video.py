@@ -6,7 +6,7 @@ from utils import iso_duration_to_minutes, sanitize_filename
 from youtube_api_client import YouTubeAPIClient
 import os
 import json
-from typing import Optional, Tuple, Union, Dict
+from typing import Optional, Tuple, Union, Dict, List
 import time
 
 # Set up logging
@@ -27,6 +27,7 @@ class Video:
         self.transcript: Optional[Tuple[str, str]] = None
         self._info_fetched: bool = False
         self.metadata: Dict = {}
+        self.debug_info: List[str] = []  # Add debug info list
 
     def fetch_video_info(self) -> bool:
         if self._info_fetched:
@@ -175,76 +176,81 @@ class Video:
 
     def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 2.0) -> bool:
         """Fetch transcript with retries"""
+        self.debug_info = []  # Clear previous debug info
+        
         for attempt in range(max_retries):
             try:
-                # Add debug print statements
-                print(f"Attempting to fetch transcript for {self.video_id} (Attempt {attempt + 1})")
+                self.debug_info.append(f"Attempt {attempt + 1} to fetch transcript")
                 
-                # Try to get available transcripts first
-                transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
-                print(f"Available transcripts: {[t.language_code for t in transcript_list]}")
-                
-                # Try English first, then auto-generated, then any available
+                # Direct approach first
                 try:
-                    transcript = transcript_list.find_transcript(['en'])
-                except:
-                    try:
-                        transcript = transcript_list.find_transcript(['en-US'])
-                    except:
-                        try:
-                            transcript = transcript_list.find_generated_transcript(['en'])
-                        except:
-                            # Get the first available transcript
-                            transcript = next(iter(transcript_list))
-                
-                # Fetch the actual transcript
-                transcript_data = transcript.fetch()
-                print(f"Fetched transcript data length: {len(transcript_data)}")
-                
+                    transcript_data = YouTubeTranscriptApi.get_transcript(self.video_id)
+                    self.debug_info.append(f"Direct transcript fetch successful")
+                except Exception as e:
+                    self.debug_info.append(f"Direct fetch failed: {str(e)}")
+                    # Try listing available transcripts
+                    transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
+                    available_langs = [t.language_code for t in transcript_list._manually_created_transcripts.values()]
+                    self.debug_info.append(f"Available languages: {available_langs}")
+                    
+                    # Try to get English transcript
+                    if 'en' in available_langs:
+                        transcript_data = transcript_list.find_transcript(['en']).fetch()
+                    elif 'en-US' in available_langs:
+                        transcript_data = transcript_list.find_transcript(['en-US']).fetch()
+                    else:
+                        # Get first available transcript
+                        first_lang = available_langs[0]
+                        transcript_data = transcript_list.find_transcript([first_lang]).fetch()
+                        self.debug_info.append(f"Using language: {first_lang}")
+
+                # Check transcript data
                 if not transcript_data:
-                    print("Empty transcript data received")
+                    self.debug_info.append("Empty transcript data received")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
                     return False
-                
+
+                # Store raw transcript data for debugging
+                self.raw_transcript_data = transcript_data
+                self.debug_info.append(f"Raw transcript entries: {len(transcript_data)}")
+
                 # Combine transcript pieces
                 full_transcript = ""
                 for entry in transcript_data:
                     if 'text' in entry:
                         full_transcript += entry['text'] + " "
-                
-                print(f"Combined transcript length: {len(full_transcript)}")
-                
+                    else:
+                        self.debug_info.append(f"Malformed entry: {entry}")
+
                 if not full_transcript.strip():
-                    print("Empty transcript after processing")
+                    self.debug_info.append("Empty transcript after processing")
                     if attempt < max_retries - 1:
                         time.sleep(retry_delay)
                         continue
                     return False
-                
+
                 self.transcript = full_transcript.strip()
-                print(f"Successfully fetched transcript. Length: {len(self.transcript)}")
+                self.debug_info.append(f"Final transcript length: {len(self.transcript)}")
                 return True
-                
+
             except (TranscriptsDisabled, NoTranscriptFound) as e:
-                print(f"No transcript available: {str(e)}")
+                self.debug_info.append(f"No transcript available: {str(e)}")
                 return False
             except Exception as e:
-                print(f"Error fetching transcript (Attempt {attempt + 1}): {str(e)}")
+                self.debug_info.append(f"Error: {str(e)}")
                 if attempt < max_retries - 1:
                     time.sleep(retry_delay)
                     continue
                 return False
-        
+
         return False
 
     def update_metadata(self, metadata: Dict):
         """Update video metadata"""
-        logger.debug("Updating video metadata")
         self.metadata = metadata
         self.title = metadata.get('title', '')
         self.description = metadata.get('description', '')
         duration = metadata.get('duration', 'PT0M')
         self.duration_minutes = iso_duration_to_minutes(duration)
-        logger.debug(f"Metadata updated - Title: {self.title}, Duration: {self.duration_minutes}min")

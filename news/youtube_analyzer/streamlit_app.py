@@ -146,8 +146,9 @@ def init_session_state():
 def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
     """Show processing steps with status messages"""
     
-    # Create a status container
+    # Create status containers
     status_container = st.empty()
+    debug_container = st.empty()
     
     # Step 1: Initialize processors
     status_container.info("Setting up processors...")
@@ -163,16 +164,20 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
     
     if not video:
         status_container.error("Could not process video")
-        logger.error(f"Failed to process video {video_id}")
+        debug_container.error("Debug: Video processing failed")
         return None
     
-    # Debug log transcript content
-    logger.debug(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
-    logger.debug(f"First 100 chars of transcript: {video.transcript[:100] if video.transcript else 'EMPTY'}")
+    # Debug information
+    with st.expander("Debug Information"):
+        st.text(f"Video ID: {video_id}")
+        st.text(f"Title: {video.title}")
+        st.text(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
+        st.text(f"First 100 chars of transcript: {video.transcript[:100] if video.transcript else 'EMPTY'}")
+        st.text(f"Available processors: {list(st.session_state.processors.keys())}")
     
     if not video.transcript:
         status_container.error("Transcript is empty")
-        logger.error(f"Empty transcript for video {video_id}")
+        debug_container.error("Debug: Empty transcript")
         return None
     
     status_container.success("Video processed successfully!")

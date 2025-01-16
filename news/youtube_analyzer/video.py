@@ -173,60 +173,70 @@ class Video:
         video._info_fetched = True  # Mark as fetched since we have the data
         return video
 
-    def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
+    def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 2.0) -> bool:
         """Fetch transcript with retries"""
-        logger.debug(f"Starting transcript fetch for video {self.video_id}")
-        
         for attempt in range(max_retries):
             try:
-                logger.debug(f"Attempt {attempt + 1} of {max_retries}")
-                transcript_list = YouTubeTranscriptApi.get_transcript(self.video_id)
-                logger.debug(f"Raw transcript list length: {len(transcript_list) if transcript_list else 0}")
+                # Add debug print statements
+                print(f"Attempting to fetch transcript for {self.video_id} (Attempt {attempt + 1})")
                 
-                # Verify transcript is not empty
-                if not transcript_list:
-                    logger.warning(f"Attempt {attempt + 1}: Empty transcript list received")
+                # Try to get available transcripts first
+                transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
+                print(f"Available transcripts: {[t.language_code for t in transcript_list]}")
+                
+                # Try English first, then auto-generated, then any available
+                try:
+                    transcript = transcript_list.find_transcript(['en'])
+                except:
+                    try:
+                        transcript = transcript_list.find_transcript(['en-US'])
+                    except:
+                        try:
+                            transcript = transcript_list.find_generated_transcript(['en'])
+                        except:
+                            # Get the first available transcript
+                            transcript = next(iter(transcript_list))
+                
+                # Fetch the actual transcript
+                transcript_data = transcript.fetch()
+                print(f"Fetched transcript data length: {len(transcript_data)}")
+                
+                if not transcript_data:
+                    print("Empty transcript data received")
                     if attempt < max_retries - 1:
-                        logger.debug(f"Waiting {retry_delay} seconds before retry")
                         time.sleep(retry_delay)
                         continue
                     return False
                 
                 # Combine transcript pieces
                 full_transcript = ""
-                for entry in transcript_list:
+                for entry in transcript_data:
                     if 'text' in entry:
                         full_transcript += entry['text'] + " "
-                    else:
-                        logger.warning(f"Transcript entry missing 'text' field: {entry}")
                 
-                logger.debug(f"Combined transcript length: {len(full_transcript)}")
+                print(f"Combined transcript length: {len(full_transcript)}")
                 
-                # Verify final transcript is not empty
                 if not full_transcript.strip():
-                    logger.warning("Combined transcript is empty after processing")
+                    print("Empty transcript after processing")
                     if attempt < max_retries - 1:
-                        logger.debug(f"Waiting {retry_delay} seconds before retry")
                         time.sleep(retry_delay)
                         continue
                     return False
                 
                 self.transcript = full_transcript.strip()
-                logger.debug(f"Successfully fetched transcript. Final length: {len(self.transcript)}")
+                print(f"Successfully fetched transcript. Length: {len(self.transcript)}")
                 return True
                 
             except (TranscriptsDisabled, NoTranscriptFound) as e:
-                logger.error(f"No transcript available: {str(e)}")
+                print(f"No transcript available: {str(e)}")
                 return False
             except Exception as e:
-                logger.error(f"Attempt {attempt + 1} failed with error: {str(e)}")
+                print(f"Error fetching transcript (Attempt {attempt + 1}): {str(e)}")
                 if attempt < max_retries - 1:
-                    logger.debug(f"Waiting {retry_delay} seconds before retry")
                     time.sleep(retry_delay)
                     continue
                 return False
         
-        logger.error("All transcript fetch attempts failed")
         return False
 
     def update_metadata(self, metadata: Dict):

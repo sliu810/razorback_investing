@@ -6,7 +6,8 @@ from utils import iso_duration_to_minutes, sanitize_filename
 from youtube_api_client import YouTubeAPIClient
 import os
 import json
-from typing import Optional, Tuple, Union
+from typing import Optional, Tuple, Union, Dict
+import time
 
 class Video:
     def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
@@ -21,6 +22,7 @@ class Video:
         self.channel_name: Optional[str] = None
         self.transcript: Optional[Tuple[str, str]] = None
         self._info_fetched: bool = False
+        self.metadata: Dict = {}
 
     def fetch_video_info(self) -> bool:
         if self._info_fetched:
@@ -166,3 +168,52 @@ class Video:
         
         video._info_fetched = True  # Mark as fetched since we have the data
         return video
+
+    def fetch_transcript(self, max_retries: int = 3, retry_delay: float = 1.0) -> bool:
+        """Fetch transcript with retries"""
+        for attempt in range(max_retries):
+            try:
+                transcript_list = YouTubeTranscriptApi.get_transcript(self.video_id)
+                
+                # Verify transcript is not empty
+                if not transcript_list:
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                # Combine transcript pieces
+                full_transcript = ""
+                for entry in transcript_list:
+                    if 'text' in entry:
+                        full_transcript += entry['text'] + " "
+                
+                # Verify final transcript is not empty
+                if not full_transcript.strip():
+                    if attempt < max_retries - 1:
+                        time.sleep(retry_delay)
+                        continue
+                    return False
+                
+                self.transcript = full_transcript.strip()
+                return True
+                
+            except (TranscriptsDisabled, NoTranscriptFound) as e:
+                print(f"No transcript available: {str(e)}")
+                return False
+            except Exception as e:
+                print(f"Attempt {attempt + 1} failed: {str(e)}")
+                if attempt < max_retries - 1:
+                    time.sleep(retry_delay)
+                    continue
+                return False
+        
+        return False
+
+    def update_metadata(self, metadata: Dict):
+        """Update video metadata"""
+        self.metadata = metadata
+        self.title = metadata.get('title', '')
+        self.description = metadata.get('description', '')
+        duration = metadata.get('duration', 'PT0M')
+        self.duration_minutes = iso_duration_to_minutes(duration)

@@ -57,47 +57,38 @@ class TranscriptAnalysis:
             </div>
         </div>
         <style>
-            /* Light mode styles (default) */
+            /* Light mode styles */
             .analysis-container {{
                 max-width: 800px;
                 margin: 20px auto;
                 font-family: Arial, sans-serif;
                 line-height: 1.6;
-                color: #333;
             }}
-            .analysis-header h2 {{
-                margin-bottom: 10px;
-                color: #1a202c;
-            }}
-            .analysis-header a {{
-                color: #2b6cb0;
-                text-decoration: none;
-            }}
+            
             .section-title {{
-                color: #2b6cb0;
-                font-weight: bold;
+                color: #2b6cb0 !important;  /* Force blue color */
+                font-size: 1.5rem !important;
+                font-weight: 600 !important;
+                margin-top: 1.5rem !important;
+                margin-bottom: 1rem !important;
             }}
-
+            
             /* Dark mode styles */
             @media (prefers-color-scheme: dark) {{
-                .analysis-container {{
-                    color: #e2e8f0;
-                }}
-                .analysis-header h2 {{
-                    color: #f7fafc;
-                }}
-                .analysis-header a {{
-                    color: #63b3ed;
-                }}
                 .section-title {{
-                    color: #63b3ed;
+                    color: #63b3ed !important;  /* Lighter blue for dark mode */
                 }}
-                .analysis-header small {{
-                    color: #cbd5e0;
-                }}
-                ul li {{
-                    color: #e2e8f0;
-                }}
+            }}
+            
+            /* Ensure section titles are always visible */
+            [data-baseweb="section-title"] {{
+                color: #2b6cb0 !important;
+            }}
+            
+            /* Force section title color regardless of theme */
+            .section-title, 
+            .section-title * {{
+                color: inherit !important;
             }}
         </style>
         """

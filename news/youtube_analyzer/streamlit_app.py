@@ -234,33 +234,52 @@ def main():
     # Chat Tab
     with tab2:
         if st.session_state.video:
-            st.subheader("Chat about the video")
+            # Add model selector in the chat tab
+            available_models = {
+                name: processor 
+                for name, processor in st.session_state.processors.items() 
+                if processor is not None
+            }
             
-            available_models = {k: v for k, v in st.session_state.processors.items() if v}
-            chat_model = st.selectbox("Select Chat Model", list(available_models.keys()))
-            
-            question = st.text_input("Ask a question about the video")
-            if st.button("Send"):
-                if question:
-                    processor = available_models[chat_model]
-                    with st.spinner("Getting response..."):
-                        response = st.session_state.client.chat(
-                            processor=processor,
-                            question=question,
-                            context=st.session_state.video.transcript
-                        )
-                        
-                        st.session_state.chat_history.append({
-                            "model": chat_model,
-                            "question": question,
-                            "response": response
-                        })
-            
-            # Display chat history
-            for chat in st.session_state.chat_history:
-                st.write(f"**You:** {chat['question']}")
-                st.write(f"**{chat['model']}:** {chat['response']}")
-                st.write("---")
+            if available_models:
+                chat_model = st.selectbox(
+                    "Select model for chat:",
+                    options=list(available_models.keys()),
+                    key="chat_model"
+                )
+                selected_processor = available_models[chat_model]
+                
+                # Accept user input at the top
+                if prompt := st.chat_input("Ask about the video"):
+                    # Display user message
+                    with st.chat_message("user"):
+                        st.write(prompt)
+                    st.session_state.chat_history.append({"role": "user", "content": prompt})
+
+                    # Generate and display assistant response
+                    with st.chat_message("assistant"):
+                        with st.spinner(f"Thinking with {chat_model}..."):
+                            response = st.session_state.client.chat(
+                                processor=selected_processor,
+                                question=prompt,
+                                context=st.session_state.video.transcript
+                            )
+                        st.write(response)
+                    st.session_state.chat_history.append({"role": "assistant", "content": response})
+                
+                # Add a divider before history
+                if st.session_state.chat_history:
+                    st.markdown("---")
+                    st.markdown("#### Chat History")
+                
+                # Display chat history in reverse order (newest first)
+                for message in reversed(st.session_state.chat_history):
+                    with st.chat_message(message["role"]):
+                        st.write(message["content"])
+            else:
+                st.warning("Please select at least one model in the sidebar to enable chat.")
+        else:
+            st.info("Please analyze a video first to start chatting.")
 
 if __name__ == "__main__":
     main() 

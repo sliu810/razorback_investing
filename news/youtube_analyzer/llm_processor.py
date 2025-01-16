@@ -235,17 +235,38 @@ Transcript:
             question: Question to ask
             context: The text content to analyze
         """
-        prompt = f"""Please answer the following question based on this content only, don't use any other information:
+        # Create a focused prompt that combines the question and context
+        combined_text = f"""Question: {question}\n\nRelevant Context: {context}"""
+        
+        try:
+            if self.config.provider == "anthropic":
+                response = self.client.messages.create(
+                    model=self.config.model_name,
+                    max_tokens=100,  # Limit response length
+                    temperature=0.7,
+                    messages=[{
+                        "role": "user",
+                        "content": f"Answer this question briefly: {question}\n\nContext: {context}"
+                    }]
+                )
+                return response.content[0].text
 
-Content:
-{context}
+            elif self.config.provider == "openai":
+                response = self.client.chat.completions.create(
+                    model=self.config.model_name,
+                    temperature=0.7,
+                    max_tokens=100,  # Limit response length
+                    messages=[{
+                        "role": "system",
+                        "content": "You are a helpful assistant. Give brief answers."
+                    },
+                    {
+                        "role": "user",
+                        "content": f"Question: {question}\n\nContext: {context}"
+                    }]
+                )
+                return response.choices[0].message.content
 
-Question: {question}
-
-Please answer based only on information provided in the content."""
-
-        return self.process_text(
-            text=prompt,
-            role_name="content_analyst",
-            task_name="answer_question"
-        )
+        except Exception as e:
+            logger.error(f"Error in chat: {str(e)}")
+            return "Sorry, I encountered an error processing your question."

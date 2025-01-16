@@ -172,8 +172,13 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
         st.text(f"Video ID: {video_id}")
         st.text(f"Title: {video.title}")
         st.text(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
-        st.text(f"First 100 chars of transcript: {video.transcript[:100] if video.transcript else 'EMPTY'}")
+        st.text(f"First 200 chars of transcript: {video.transcript[:200] if video.transcript else 'EMPTY'}")
         st.text(f"Available processors: {list(st.session_state.processors.keys())}")
+        st.text(f"Metadata: {video.metadata}")
+        
+        # Add raw transcript data
+        if hasattr(video, '_raw_transcript'):
+            st.text(f"Raw transcript data: {video._raw_transcript}")
     
     if not video.transcript:
         status_container.error("Transcript is empty")

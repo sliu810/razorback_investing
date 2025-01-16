@@ -1,8 +1,8 @@
+import os
+from typing import Optional, Tuple
 from video_analyzer import VideoAnalyzer, LLMConfig, AnalysisConfig
 from video import Video
-from llm_processor import LLMProcessor
-from typing import Dict, Optional, Tuple
-import os
+from youtube_api_client import YouTubeAPIClient
 
 class YouTubeAnalysisClient:
     """Client class that uses VideoAnalyzer for YouTube videos"""

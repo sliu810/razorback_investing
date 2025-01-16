@@ -57,6 +57,7 @@ class TranscriptAnalysis:
             </div>
         </div>
         <style>
+            /* Light mode styles (default) */
             .analysis-container {{
                 max-width: 800px;
                 margin: 20px auto;
@@ -64,37 +65,39 @@ class TranscriptAnalysis:
                 line-height: 1.6;
                 color: #333;
             }}
-            .analysis-header {{
-                margin-bottom: 30px;
-            }}
             .analysis-header h2 {{
                 margin-bottom: 10px;
                 color: #1a202c;
-            }}
-            .analysis-header small {{
-                display: block;
-                margin-bottom: 5px;
             }}
             .analysis-header a {{
                 color: #2b6cb0;
                 text-decoration: none;
             }}
-            .analysis-header a:hover {{
-                text-decoration: underline;
-            }}
             .section-title {{
                 color: #2b6cb0;
                 font-weight: bold;
-                font-size: 1.2rem;
-                margin: 25px 0 15px 0;
             }}
-            ul {{
-                margin: 10px 0;
-                padding-left: 20px;
-            }}
-            li {{
-                margin-bottom: 8px;
-                line-height: 1.5;
+
+            /* Dark mode styles */
+            @media (prefers-color-scheme: dark) {{
+                .analysis-container {{
+                    color: #e2e8f0;
+                }}
+                .analysis-header h2 {{
+                    color: #f7fafc;
+                }}
+                .analysis-header a {{
+                    color: #63b3ed;
+                }}
+                .section-title {{
+                    color: #63b3ed;
+                }}
+                .analysis-header small {{
+                    color: #cbd5e0;
+                }}
+                ul li {{
+                    color: #e2e8f0;
+                }}
             }}
         </style>
         """

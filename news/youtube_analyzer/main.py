@@ -1,114 +1,77 @@
 # main.py
-import os
 import argparse
-from video_analyzer import VideoAnalyzer, LLMConfig
-from llm_processor import LLMProcessor
-from video import Video
+from youtube_client import YouTubeAnalysisClient
+import time
 
-def setup_processors(provider=None, model=None):
-    """
-    Initialize LLM processors based on configuration
-    
-    Args:
-        provider: Optional provider for analysis (openai or anthropic)
-        model: Optional model name for the specified provider
-    """
-    processors = []
-    
-    # Default configurations
-    default_configs = {
-        "anthropic": LLMConfig(
-            provider="anthropic",
-            model_name="claude-3-opus-20240229",
-            temperature=0.7,
-            max_tokens=4000
-        ),
-        "openai": LLMConfig(
-            provider="openai",
-            model_name="gpt-4-0125-preview",
-            temperature=0.7,
-            max_tokens=4000
-        )
-    }
-    
-    if provider:
-        # Use specified provider and model
-        if provider not in default_configs:
-            raise ValueError(f"Unsupported provider: {provider}")
-        
-        config = default_configs[provider]
-        if model:
-            config.model_name = model
-        processors.append(LLMProcessor(config))
-    else:
-        # Use both providers with default models
-        processors = [LLMProcessor(config) for config in default_configs.values()]
-    
-    return processors
-
-def process_video(video_id: str):
-    """Process video and get transcript"""
-    video = Video(video_id)
-    if not video.fetch_video_info():
-        print(f"Could not fetch video info for {video_id}")
-        return None
-    return video
+def show_cli_progress(message: str):
+    """Show progress message with timestamp"""
+    timestamp = time.strftime("%H:%M:%S")
+    print(f"[{timestamp}] {message}")
 
 def main():
-    # Set up command line arguments
+    """CLI interface"""
     parser = argparse.ArgumentParser(description='Analyze YouTube video and chat about it')
     parser.add_argument('--videoid', required=True, help='YouTube video ID')
     parser.add_argument('--provider', choices=['openai', 'anthropic'], help='Provider for analysis')
-    parser.add_argument('--model', help='Model name for analysis')
-    parser.add_argument('--chat_provider', choices=['openai', 'anthropic'], default='openai', 
+    parser.add_argument('--chat_provider', choices=['openai', 'anthropic'], default='openai',
                       help='Provider for chat (default: openai)')
     parser.add_argument('--chat_model', default='gpt-4-0125-preview',
                       help='Model name for chat (default: gpt-4-0125-preview)')
     
     args = parser.parse_args()
     
-    try:
-        # Setup processors based on arguments
-        processors = setup_processors(args.provider, args.model)
+    show_cli_progress("Initializing YouTube Analyzer...")
+    client = YouTubeAnalysisClient()
+    
+    show_cli_progress("Setting up processors...")
+    claude, gpt4 = client.setup_processors()
+    
+    show_cli_progress(f"Processing video {args.videoid}...")
+    video = client.process_video(args.videoid)
+    
+    if video:
+        show_cli_progress("Video processed successfully!")
         
-        # Setup chat processor
-        chat_config = LLMConfig(
-            provider=args.chat_provider,
-            model_name=args.chat_model,
-            temperature=0.7,
-            max_tokens=4000
-        )
-        chat_processor = LLMProcessor(chat_config)
+        # Use specified provider or both for analysis
+        processors = []
+        if args.provider == 'openai':
+            processors = [gpt4]
+        elif args.provider == 'anthropic':
+            processors = [claude]
+        else:
+            processors = [claude, gpt4]
         
-        # Process video
-        video = process_video(args.videoid)
+        # Run analysis
+        for processor in processors:
+            provider_name = processor.config.provider
+            show_cli_progress(f"Analyzing with {provider_name}...")
+            analysis = client.analyze_text(
+                processor=processor,
+                text=video.transcript
+            )
+            print(f"\nAnalysis from {provider_name}:\n{analysis}\n")
+            show_cli_progress(f"Analysis complete for {provider_name}")
         
-        if video:
-            # Run analysis with all processors
-            for processor in processors:
-                print(f"\nAnalyzing with {processor.config.provider} {processor.config.model_name}...")
-                analysis = processor.process_text(
-                    text=video.transcript,
-                    role_name="content_summarizer",
-                    task_name="summarize_transcript"
-                )
-                print(f"\nAnalysis:\n{analysis}\n")
+        # Select chat processor based on chat_provider
+        chat_processor = gpt4 if args.chat_provider == 'openai' else claude
+        show_cli_progress(f"Chat ready using {args.chat_provider}")
+        
+        # Interactive chat loop
+        while True:
+            question = input("\nEnter your question (or 'quit' to exit): ")
+            if question.lower() == 'quit':
+                break
             
-            # Interactive chat loop
-            print(f"\nStarting chat with {chat_processor.config.provider} {chat_processor.config.model_name}")
-            while True:
-                question = input("\nEnter your question (or 'quit' to exit): ")
-                if question.lower() == 'quit':
-                    break
-                
-                response = chat_processor.chat(
-                    question=question,
-                    context=video.transcript
-                )
-                print("\nResponse:", response)
-                
-    except Exception as e:
-        print(f"Error: {e}")
+            show_cli_progress("Processing your question...")
+            response = client.chat(
+                processor=chat_processor,
+                question=question,
+                context=video.transcript
+            )
+            print("\nResponse:", response)
+            show_cli_progress("Response complete")
+    else:
+        show_cli_progress("Error: Could not process video")
 
 if __name__ == "__main__":
     main()

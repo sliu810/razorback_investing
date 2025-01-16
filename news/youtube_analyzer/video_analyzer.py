@@ -48,47 +48,38 @@ class TranscriptAnalysis:
         html = f"""
         <div class="analysis-container">
             <div class="analysis-header">
-                <h2>{self.video.title}</h2>
-                <small><a href="{video_url}" target="_blank">Watch Video</a></small>
-                <p>Analyzed by {self.model_provider}/{self.model_name}</p>
+                <h2 style="color: #f8f9fa;">{self.video.title}</h2>
+                <small><a href="{video_url}" target="_blank" style="color: #63b3ed;">Watch Video</a></small>
+                <p style="color: #e9ecef;">Analyzed by {self.model_provider}/{self.model_name}</p>
             </div>
-            <div class="analysis-content">
+            <div class="analysis-content" style="color: #e9ecef;">
                 {self._format_summary_as_html()}
             </div>
         </div>
         <style>
-            /* Light mode styles */
             .analysis-container {{
                 max-width: 800px;
                 margin: 20px auto;
                 font-family: Arial, sans-serif;
                 line-height: 1.6;
+                color: #e9ecef;
             }}
             
-            .section-title {{
-                color: #2b6cb0 !important;  /* Force blue color */
+            h3.section-title {{
+                color: #63b3ed !important;
                 font-size: 1.5rem !important;
                 font-weight: 600 !important;
                 margin-top: 1.5rem !important;
                 margin-bottom: 1rem !important;
             }}
             
-            /* Dark mode styles */
-            @media (prefers-color-scheme: dark) {{
-                .section-title {{
-                    color: #63b3ed !important;  /* Lighter blue for dark mode */
-                }}
+            .analysis-content ul {{
+                color: #e9ecef !important;
             }}
             
-            /* Ensure section titles are always visible */
-            [data-baseweb="section-title"] {{
-                color: #2b6cb0 !important;
-            }}
-            
-            /* Force section title color regardless of theme */
-            .section-title, 
-            .section-title * {{
-                color: inherit !important;
+            .analysis-content li {{
+                color: #e9ecef !important;
+                margin-bottom: 0.5rem;
             }}
         </style>
         """
@@ -97,7 +88,7 @@ class TranscriptAnalysis:
     def _format_summary_as_html(self) -> str:
         """Format summary text as HTML with sections and bullet points"""
         if not self.summary:
-            return "<p class='error'>No analysis available</p>"
+            return "<p class='error' style='color: #ff6b6b;'>No analysis available</p>"
 
         html = ""
         current_section = None
@@ -110,16 +101,16 @@ class TranscriptAnalysis:
             if not line:
                 continue
 
-            # Check if it's a section header (enclosed in square brackets)
+            # Check if it's a section header
             if line.startswith('[') and ']' in line:
                 # If we have a previous section, close it
                 if current_bullets:
-                    html += "<ul>" + "".join(current_bullets) + "</ul>"
+                    html += "<ul style='color: #e9ecef;'>" + "".join(current_bullets) + "</ul>"
                     current_bullets = []
 
-                # Extract section title from between brackets and create new section
+                # Extract section title and create new section
                 title = line[1:line.index(']')].strip()
-                html += f'<h3 class="section-title">{title}</h3>'
+                html += f'<h3 class="section-title" style="color: #63b3ed;">{title}</h3>'
                 current_section = title
 
             # Handle bullet points and content
@@ -127,13 +118,13 @@ class TranscriptAnalysis:
                 content = line.lstrip('-• ').strip()
                 if content:
                     if line.startswith(('-', '•')):
-                        current_bullets.append(f'<li>{content}</li>')
-                    elif current_section:  # If we're in a section but it's not a bullet point
-                        current_bullets.append(f'<li>{content}</li>')
+                        current_bullets.append(f'<li style="color: #e9ecef;">{content}</li>')
+                    elif current_section:
+                        current_bullets.append(f'<li style="color: #e9ecef;">{content}</li>')
 
         # Close any open bullets
         if current_bullets:
-            html += "<ul>" + "".join(current_bullets) + "</ul>"
+            html += "<ul style='color: #e9ecef;'>" + "".join(current_bullets) + "</ul>"
 
         return html
 

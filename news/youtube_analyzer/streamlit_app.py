@@ -252,6 +252,8 @@ def main():
                     
                     # Show completion after all analyses are done
                     status_container.success("Analysis completed successfully!")
+            else:
+                st.error("Please enter a YouTube Video ID")
     
     # Main content - Tabs
     tab1, tab2 = st.tabs(["Analysis", "Chat"])

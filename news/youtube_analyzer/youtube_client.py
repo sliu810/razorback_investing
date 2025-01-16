@@ -1,6 +1,6 @@
 import os
 from typing import Optional, Tuple
-from video_analyzer import VideoAnalyzer, LLMConfig, AnalysisConfig
+from video_analyzer import VideoAnalyzer, LLMConfig, AnalysisConfig, LLMProcessor
 from video import Video
 from youtube_api_client import YouTubeAPIClient
 
@@ -20,7 +20,9 @@ class YouTubeAnalysisClient:
                 raise ValueError("YouTube API key not found")
             
             # Initialize YouTube API client
+            print(f"Attempting to initialize YouTube API client...")  # Debug print
             self.youtube_client = YouTubeAPIClient(api_key)
+            print("YouTube API client initialized successfully")  # Debug print
         except Exception as e:
             print(f"Failed to initialize YouTube API client: {str(e)}")
             raise

@@ -58,20 +58,12 @@ class YouTubeAnalysisClient:
             # Create Video object
             video = Video(video_id)
             
-            # Fetch video info first
-            if not video.fetch_video_info():
-                logger.error(f"Failed to fetch video info for {video_id}")
-                return None
+            # Get video info and transcript
+            video.get_video_metadata_and_transcript()
             
             logger.debug(f"Video info fetched - ID: {video.video_id}, "
                         f"Title: {video.title}, "
                         f"URL: {video.url}")
-            
-            # Fetch transcript
-            if not video.fetch_transcript():
-                logger.error(f"Failed to fetch transcript for {video_id}")
-            else:
-                logger.debug("Successfully fetched transcript")
             
             return video
             

@@ -134,9 +134,13 @@ class Channel(ABC):
     def create_video_objects(self, video_ids: Set[str]) -> List[Video]:
         new_videos = []
         for video_id in video_ids:
-            video = Video(video_id, transcript_language=self.transcript_language, timezone=self.timezone)
-            if video.fetch_video_info():
+            try:
+                video = Video(video_id, transcript_language=self.transcript_language, timezone=self.timezone)
+                video.get_video_metadata_and_transcript()
                 new_videos.append(video)
+            except Exception as e:
+                logger.error(f"Failed to create video object for ID {video_id}: {str(e)}")
+                continue
         return new_videos
 
     def _ensure_timezone_aware(self, dt: datetime) -> datetime:

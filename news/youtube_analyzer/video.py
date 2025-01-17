@@ -10,7 +10,6 @@ from typing import Optional, Tuple, Union, Dict, List
 import time
 
 # Set up logging
-logging.basicConfig(level=logging.DEBUG)
 logger = logging.getLogger(__name__)
 
 class Video:
@@ -26,14 +25,11 @@ class Video:
         self.channel_id: Optional[str] = None
         self.channel_name: Optional[str] = None
         self.transcript: Optional[Tuple[str, str]] = None
-        self._info_fetched: bool = False
-        self.metadata: Dict = {}
-        self.debug_info: List[str] = []  # Add debug info list
+        self._metadata_fetched: bool = False
+        self._transcript_fetched: bool = False
 
-    def fetch_video_info(self) -> bool:
-        if self._info_fetched:
-            return True
-
+    def get_video_metadata(self) -> None:
+        """Fetch basic video information from YouTube API"""
         try:
             video_request = self.youtube_api_client.create_videos_request(
                 part="snippet,contentDetails",
@@ -42,8 +38,7 @@ class Video:
             video_response = self.youtube_api_client.execute_api_request(video_request)
 
             if not video_response['items']:
-                self.youtube_api_client.logger.warning(f"No video found for ID: {self.video_id}")
-                return False
+                raise ValueError(f"No video found for ID: {self.video_id}")
 
             video_data = video_response['items'][0]
             snippet = video_data['snippet']
@@ -57,22 +52,26 @@ class Video:
             self.duration_minutes = iso_duration_to_minutes(content_details['duration'])
             self.channel_id = snippet['channelId']
             self.channel_name = snippet['channelTitle']
-            self.transcript = self.get_transcript()
+            
+            self._metadata_fetched = True
 
-            self._info_fetched = True
-            return True
         except Exception as e:
-            self.youtube_api_client.logger.error(f"An error occurred while fetching video info for {self.video_id}: {str(e)}")
-            return False
+            self._metadata_fetched = False
+            logger.error(f"Failed to fetch video metadata for {self.video_id}: {str(e)}")
+            raise
 
-    def get_video_title(self) -> Optional[str]:
-        if not self._info_fetched:
-            self.fetch_video_info()
-        return self.title
+    def get_video_metadata_and_transcript(self) -> None:
+        """Fetch both video metadata and transcript"""
+        try:
+            self.get_video_metadata()
+            self.get_transcript()
+        except Exception as e:
+            logger.error(f"Failed to fetch video info and transcript for {self.video_id}: {str(e)}")
+            raise
 
     def to_dict(self) -> dict:
         if not self._info_fetched:
-            self.fetch_video_info()
+            self.get_video_metadata_and_transcript()
         
         return {
             'Video ID': self.video_id,
@@ -99,12 +98,11 @@ class Video:
         return transcript
 
     def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
-        # First check if we already have the transcript
         if self.transcript is not None:
-            logging.debug(f"Returning cached transcript for video {self.video_id}")
+            logger.debug(f"Returning cached transcript for video {self.video_id}")
             return self.transcript
 
-        logging.debug(f"Fetching transcript from YouTube API for video {self.video_id}")
+        logger.debug(f"Fetching transcript from YouTube API for video {self.video_id}")
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
             
@@ -112,7 +110,7 @@ class Video:
                 transcript = transcript_list.find_transcript([self.transcript_language])
             except NoTranscriptFound:
                 if self.transcript_language != 'en':
-                    self.youtube_api_client.logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
+                    logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
                     transcript = transcript_list.find_transcript(['en'])
                 else:
                     raise
@@ -120,24 +118,24 @@ class Video:
             full_transcript = ' '.join([entry['text'] for entry in transcript.fetch()])
             transformed_transcript = self._transform_transcript_for_readability(full_transcript, transcript.language_code)
             
-            self.transcript = (transformed_transcript, transcript.language_code)  # Cache the result
-            logging.debug(f"Successfully fetched and cached transcript for video {self.video_id}")
+            self.transcript = (transformed_transcript, transcript.language_code)
+            logger.debug(f"Successfully fetched and cached transcript for video {self.video_id}")
             return self.transcript
         except (TranscriptsDisabled, NoTranscriptFound):
-            self.youtube_api_client.logger.warning(f"No transcript available for video ID: {self.video_id}")
-            self.transcript = (None, None)  # Cache the negative result
+            logger.warning(f"No transcript available for video ID: {self.video_id}")
+            self.transcript = (None, None)
             return None, None
         except Exception as e:
-            self.youtube_api_client.logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
-            self.transcript = (None, None)  # Cache the negative result
+            logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
+            self.transcript = (None, None)
             return None, None
 
     def serialize_video_to_file(self, root_dir: str) -> Optional[str]:
         if not self._info_fetched:
-            self.fetch_video_info()
+            self.get_video_metadata_and_transcript()
 
         if not self.title:
-            self.youtube_api_client.logger.warning(f"No video info available to save for video ID: {self.video_id}")
+            logger.warning(f"No video info available to save for video ID: {self.video_id}")
             return None
 
         transcript_language = self.transcript[1] if self.transcript else 'en'
@@ -172,70 +170,57 @@ class Video:
         if data['Published At']:
             video.set_published_at(data['Published At'])
         
-        video._info_fetched = True  # Mark as fetched since we have the data
+        video._info_fetched = True
         return video
 
     def fetch_transcript(self, max_retries: int = 5, retry_delay: float = 3.0) -> bool:
         """Fetch transcript with retries"""
-        self.debug_info = []
-        
         for attempt in range(max_retries):
             try:
-                self.debug_info.append(f"Attempt {attempt + 1} to fetch transcript")
+                logger.debug(f"Attempt {attempt + 1} to fetch transcript")
                 
-                # Add longer timeout and more retries
                 time.sleep(1.0)  # Add small delay before each attempt
                 
                 try:
                     transcript_data = YouTubeTranscriptApi.get_transcript(self.video_id)
-                    self.debug_info.append(f"Direct transcript fetch successful")
+                    logger.debug("Direct transcript fetch successful")
                     
-                    # Process transcript immediately if successful
                     if transcript_data:
                         full_transcript = " ".join(entry['text'] for entry in transcript_data)
                         self.transcript = full_transcript.strip()
-                        self.debug_info.append(f"Transcript processed, length: {len(self.transcript)}")
+                        logger.debug(f"Transcript processed, length: {len(self.transcript)}")
                         return True
                         
                 except Exception as e:
                     if "Subtitles are disabled" in str(e):
-                        self.debug_info.append("Subtitles disabled, trying alternative method...")
-                        # Try listing available transcripts
+                        logger.debug("Subtitles disabled, trying alternative method...")
                         transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
                         available_langs = [t.language_code for t in transcript_list._manually_created_transcripts.values()]
-                        self.debug_info.append(f"Found languages: {available_langs}")
+                        logger.debug(f"Found languages: {available_langs}")
                         
-                        if available_langs:  # Only try if we found some transcripts
+                        if available_langs:
                             for lang in ['en', 'en-US', *available_langs]:
                                 try:
                                     transcript_data = transcript_list.find_transcript([lang]).fetch()
                                     if transcript_data:
                                         full_transcript = " ".join(entry['text'] for entry in transcript_data)
                                         self.transcript = full_transcript.strip()
-                                        self.debug_info.append(f"Got transcript in {lang}, length: {len(self.transcript)}")
+                                        logger.debug(f"Got transcript in {lang}, length: {len(self.transcript)}")
                                         return True
                                 except:
                                     continue
                     
-                    self.debug_info.append(f"Attempt {attempt + 1} failed: {str(e)}")
+                    logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
                     
             except Exception as e:
-                self.debug_info.append(f"Error in attempt {attempt + 1}: {str(e)}")
+                logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
                 
             if attempt < max_retries - 1:
-                sleep_time = retry_delay * (attempt + 1)  # Exponential backoff
-                self.debug_info.append(f"Waiting {sleep_time}s before next attempt...")
+                sleep_time = retry_delay * (attempt + 1)
+                logger.debug(f"Waiting {sleep_time}s before next attempt...")
                 time.sleep(sleep_time)
         
         return False
-
-    def update_metadata(self, metadata: Dict):
-        """Update video metadata"""
-        self.metadata = metadata
-        self.title = metadata.get('title', '')
-        self.description = metadata.get('description', '')
-        duration = metadata.get('duration', 'PT0M')
-        self.duration_minutes = iso_duration_to_minutes(duration)
 
     def __str__(self):
         """String representation of Video object"""

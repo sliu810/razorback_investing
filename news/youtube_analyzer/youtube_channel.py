@@ -119,7 +119,7 @@ class YoutubeChannel(YouTubeBase):
 
                 for item in response.get("items", []):
                     video_id = item['id']['videoId']
-                    video_info = self.get_video_api(video_id).fetch_video_info()
+                    video_info = self.get_video_api(video_id).get_video_metadata_and_transcript()
                     if video_info:
                         videos_data.append(video_info)
 

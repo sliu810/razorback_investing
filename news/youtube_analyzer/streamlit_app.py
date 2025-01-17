@@ -183,13 +183,8 @@ def show_processing_steps(video_id: str, use_claude: bool, use_gpt4: bool):
             if video:
                 st.text(f"Video ID: {video.video_id}")
                 st.text(f"Title: {video.title}")
-                st.text(f"Metadata present: {bool(video.metadata)}")
                 st.text(f"Transcript length: {len(video.transcript) if video.transcript else 0}")
                 st.text(f"First 200 chars: {video.transcript[:200] if video.transcript else 'EMPTY'}")
-                if hasattr(video, 'debug_info'):
-                    st.text("\n=== Transcript Debug Info ===")
-                    for info in video.debug_info:
-                        st.text(f"  - {info}")
             
             st.text("\n=== Available Processors ===")
             st.text(f"Processors: {list(st.session_state.processors.keys())}")

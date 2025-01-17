@@ -228,11 +228,9 @@ def init_analysis_settings():
         format_func=lambda x: "Research Assistant" if x == "research_assistant" else "Financial Analyst"
     )
     
-    # Create RoleRegistry instance
-    role_registry = RoleRegistry()
+    # Use class methods directly without instantiation
+    role_info = RoleRegistry.get_research_assistant() if role == "research_assistant" else RoleRegistry.get_financial_analyst()
     
-    # Show role description with consistent styling
-    role_info = role_registry.get_research_assistant() if role == "research_assistant" else role_registry.get_financial_analyst()
     with st.sidebar.expander("Role Description"):
         st.markdown(f"**Description:** {role_info.description}")
     
@@ -244,9 +242,8 @@ def init_analysis_settings():
         format_func=lambda x: "Summarize Transcript"
     )
     
-    # Show task description with consistent styling
-    task_registry = TaskRegistry()
-    task_info = task_registry.get_summarize_transcript()
+    # Use class method directly
+    task_info = TaskRegistry.get_summarize_transcript()
     with st.sidebar.expander("Task Description"):
         st.markdown(f"**Description:** {task_info.description}")
     

@@ -16,6 +16,7 @@ logger = logging.getLogger(__name__)
 class Video:
     def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
         self.video_id: str = video_id
+        self.url: str = f"https://www.youtube.com/watch?v={video_id}"
         self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
         self.transcript_language: str = transcript_language
         self.timezone = pytz.timezone(timezone)

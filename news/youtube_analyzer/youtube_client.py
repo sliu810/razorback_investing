@@ -3,6 +3,9 @@ from typing import Optional, Tuple
 from video_analyzer import VideoAnalyzer, LLMConfig, AnalysisConfig, LLMProcessor
 from video import Video
 from youtube_api_client import YouTubeAPIClient
+import logging
+
+logger = logging.getLogger(__name__)
 
 class YouTubeAnalysisClient:
     """Client class that uses VideoAnalyzer for YouTube videos"""
@@ -57,21 +60,23 @@ class YouTubeAnalysisClient:
             
             # Fetch video info first
             if not video.fetch_video_info():
-                print(f"Failed to fetch video info for {video_id}")
+                logger.error(f"Failed to fetch video info for {video_id}")
                 return None
             
-            print(f"Created video object with title: {video.title}")
+            logger.debug(f"Video info fetched - ID: {video.video_id}, "
+                        f"Title: {video.title}, "
+                        f"URL: {video.url}")
             
             # Fetch transcript
             if not video.fetch_transcript():
-                print(f"Failed to fetch transcript for {video_id}")
+                logger.error(f"Failed to fetch transcript for {video_id}")
             else:
-                print(f"Successfully fetched transcript")
+                logger.debug("Successfully fetched transcript")
             
             return video
             
         except Exception as e:
-            print(f"Error processing video: {str(e)}")
+            logger.error(f"Error processing video: {str(e)}")
             return None
     
     def analyze_text(self, 
@@ -95,30 +100,3 @@ class YouTubeAnalysisClient:
             question=question,
             context=context
         )
-    
-    def get_video_details(self, video_id: str) -> Video:
-        """Get video details from YouTube API"""
-        try:
-            request = self.youtube.videos().list(
-                part="snippet,contentDetails",
-                id=video_id
-            )
-            response = request.execute()
-            
-            if response['items']:
-                video_data = response['items'][0]
-                title = video_data['snippet']['title']
-                logger.debug(f"Found video title: {title}")  # Add just this one debug line
-                
-                return Video(
-                    id=video_id,
-                    title=title,
-                    channel_title=video_data['snippet']['channelTitle'],
-                    published_at=video_data['snippet']['publishedAt'],
-                    duration=video_data['contentDetails']['duration'],
-                    thumbnail_url=video_data['snippet']['thumbnails']['medium']['url']
-                )
-            return None
-        except Exception as e:
-            logger.error(f"Error getting video details: {str(e)}")
-            return None 

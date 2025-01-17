@@ -258,13 +258,12 @@ def display_analysis_results(video, analysis_results):
         # Video information section
         st.subheader("Video Information")
         col1, col2 = st.columns([1, 2])
-        with col1:
-            st.image(video.thumbnail_url, use_column_width=True)
         with col2:
-            st.write(f"**Title:** {video.title}")  # This line shows None
-            st.write(f"**Channel:** {video.channel_title}")
+            st.write(f"**Title:** {video.title}")
+            st.write(f"**URL:** {video.url}")
+            st.write(f"**Channel:** {video.channel_name}")
             st.write(f"**Published:** {video.published_at}")
-            st.write(f"**Duration:** {video.duration}")
+            st.write(f"**Duration:** {video.duration_minutes} minutes")
             
         # Analysis results section
         st.subheader("Content Analysis")

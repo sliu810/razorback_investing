@@ -7,9 +7,7 @@ from youtube_api_client import YouTubeAPIClient
 import os
 import json
 from typing import Optional, Tuple, Union, Dict, List
-import time
 
-# Set up logging
 logger = logging.getLogger(__name__)
 
 class Video:
@@ -28,6 +26,7 @@ class Video:
         self._metadata_fetched: bool = False
         self._transcript_fetched: bool = False
 
+    # Core data fetching methods
     def get_video_metadata(self) -> None:
         """Fetch basic video information from YouTube API"""
         try:
@@ -60,45 +59,9 @@ class Video:
             logger.error(f"Failed to fetch video metadata for {self.video_id}: {str(e)}")
             raise
 
-    def get_video_metadata_and_transcript(self) -> None:
-        """Fetch both video metadata and transcript"""
-        try:
-            self.get_video_metadata()
-            self.get_transcript()
-        except Exception as e:
-            logger.error(f"Failed to fetch video info and transcript for {self.video_id}: {str(e)}")
-            raise
-
-    def to_dict(self) -> dict:
-        if not self._info_fetched:
-            self.get_video_metadata_and_transcript()
-        
-        return {
-            'Video ID': self.video_id,
-            'Title': self.title,
-            'Published At': self.published_at.isoformat() if self.published_at else None,
-            'Duration (minutes)': self.duration_minutes,
-            'Channel ID': self.channel_id,
-            'Channel Name': self.channel_name,
-            'Transcript': self.transcript
-        }
-
-    def _transform_transcript_for_readability(self, transcript: str, language: str) -> str:
-        if not transcript or language != 'en':
-            return transcript
-
-        def is_all_caps(text):
-            return text.isupper() and any(c.isalpha() for c in text)
-
-        if is_all_caps(transcript):
-            sentences = transcript.capitalize().split('. ')
-            transformed_transcript = '. '.join(sentence.capitalize() for sentence in sentences)
-            return transformed_transcript
-
-        return transcript
-
     def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
-        if self.transcript is not None:
+        """Fetch and process video transcript"""
+        if self.transcript is not None and self._transcript_fetched:
             logger.debug(f"Returning cached transcript for video {self.video_id}")
             return self.transcript
 
@@ -119,19 +82,66 @@ class Video:
             transformed_transcript = self._transform_transcript_for_readability(full_transcript, transcript.language_code)
             
             self.transcript = (transformed_transcript, transcript.language_code)
+            self._transcript_fetched = True
             logger.debug(f"Successfully fetched and cached transcript for video {self.video_id}")
             return self.transcript
+
         except (TranscriptsDisabled, NoTranscriptFound):
             logger.warning(f"No transcript available for video ID: {self.video_id}")
             self.transcript = (None, None)
+            self._transcript_fetched = False
             return None, None
         except Exception as e:
             logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
             self.transcript = (None, None)
+            self._transcript_fetched = False
             return None, None
 
+    def get_video_metadata_and_transcript(self) -> None:
+        """Fetch both video metadata and transcript"""
+        try:
+            self.get_video_metadata()
+            self.get_transcript()
+        except Exception as e:
+            logger.error(f"Failed to fetch video info and transcript for {self.video_id}: {str(e)}")
+            raise
+
+    # Helper methods
+    def _transform_transcript_for_readability(self, transcript: str, language: str) -> str:
+        """Transform transcript text for better readability"""
+        if not transcript or language != 'en':
+            return transcript
+
+        def is_all_caps(text):
+            return text.isupper() and any(c.isalpha() for c in text)
+
+        if is_all_caps(transcript):
+            sentences = transcript.capitalize().split('. ')
+            transformed_transcript = '. '.join(sentence.capitalize() for sentence in sentences)
+            return transformed_transcript
+
+        return transcript
+
+    # Serialization methods
+    def to_dict(self) -> dict:
+        """Convert video object to dictionary"""
+        if not self._metadata_fetched:
+            self.get_video_metadata_and_transcript()
+        
+        return {
+            'Video ID': self.video_id,
+            'URL': self.url,
+            'Title': self.title,
+            'Published At': self.published_at.isoformat() if self.published_at else None,
+            'Duration (minutes)': self.duration_minutes,
+            'Channel ID': self.channel_id,
+            'Channel Name': self.channel_name,
+            'Transcript': self.transcript
+        }
+
     def serialize_video_to_file(self, root_dir: str) -> Optional[str]:
-        if not self._info_fetched:
+        """Save video information to a JSON file"""
+        if not self._metadata_fetched:
             self.get_video_metadata_and_transcript()
 
         if not self.title:
@@ -150,13 +160,9 @@ class Video:
         
         return file_path
 
-    def set_published_at(self, value: Union[str, datetime]):
-        if isinstance(value, str):
-            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
-        self.published_at = value
-
     @classmethod
     def from_json_file(cls, file_path: str) -> 'Video':
+        """Create a Video object from a JSON file"""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)
         
@@ -170,57 +176,15 @@ class Video:
         if data['Published At']:
             video.set_published_at(data['Published At'])
         
-        video._info_fetched = True
+        video._metadata_fetched = True
+        video._transcript_fetched = bool(video.transcript and video.transcript[0])
         return video
 
-    def fetch_transcript(self, max_retries: int = 5, retry_delay: float = 3.0) -> bool:
-        """Fetch transcript with retries"""
-        for attempt in range(max_retries):
-            try:
-                logger.debug(f"Attempt {attempt + 1} to fetch transcript")
-                
-                time.sleep(1.0)  # Add small delay before each attempt
-                
-                try:
-                    transcript_data = YouTubeTranscriptApi.get_transcript(self.video_id)
-                    logger.debug("Direct transcript fetch successful")
-                    
-                    if transcript_data:
-                        full_transcript = " ".join(entry['text'] for entry in transcript_data)
-                        self.transcript = full_transcript.strip()
-                        logger.debug(f"Transcript processed, length: {len(self.transcript)}")
-                        return True
-                        
-                except Exception as e:
-                    if "Subtitles are disabled" in str(e):
-                        logger.debug("Subtitles disabled, trying alternative method...")
-                        transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
-                        available_langs = [t.language_code for t in transcript_list._manually_created_transcripts.values()]
-                        logger.debug(f"Found languages: {available_langs}")
-                        
-                        if available_langs:
-                            for lang in ['en', 'en-US', *available_langs]:
-                                try:
-                                    transcript_data = transcript_list.find_transcript([lang]).fetch()
-                                    if transcript_data:
-                                        full_transcript = " ".join(entry['text'] for entry in transcript_data)
-                                        self.transcript = full_transcript.strip()
-                                        logger.debug(f"Got transcript in {lang}, length: {len(self.transcript)}")
-                                        return True
-                                except:
-                                    continue
-                    
-                    logger.error(f"Attempt {attempt + 1} failed: {str(e)}")
-                    
-            except Exception as e:
-                logger.error(f"Error in attempt {attempt + 1}: {str(e)}")
-                
-            if attempt < max_retries - 1:
-                sleep_time = retry_delay * (attempt + 1)
-                logger.debug(f"Waiting {sleep_time}s before next attempt...")
-                time.sleep(sleep_time)
-        
-        return False
+    def set_published_at(self, value: Union[str, datetime]):
+        """Set the published_at datetime from string or datetime object"""
+        if isinstance(value, str):
+            value = datetime.fromisoformat(value.replace('Z', '+00:00'))
+        self.published_at = value
 
     def __str__(self):
         """String representation of Video object"""

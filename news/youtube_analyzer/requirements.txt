@@ -3,21 +3,21 @@ streamlit>=1.32.0
 pydantic>=2.6.1
 python-dotenv>=1.0.0
 
-# API Clients
+# YouTube API related
 youtube-transcript-api>=0.6.1
 google-api-python-client>=2.120.0
 google-auth-httplib2>=0.2.0
 google-auth-oauthlib>=1.2.0
 requests>=2.31.0
 
-# LLM and AI
+# LLM related
+langchain==0.3.2
+langchain-openai==0.2.2
+langchain-anthropic==0.3.1
 anthropic>=0.18.1
 openai>=1.12.0
-langchain>=0.1.12
-langchain-openai>=0.0.8
-langchain-anthropic>=0.1.4
 
-# Utilities
+# Utility packages
 isodate>=0.6.1
 python-dateutil>=2.8.2
 typing-extensions>=4.9.0

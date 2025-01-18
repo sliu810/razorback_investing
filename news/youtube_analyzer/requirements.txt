@@ -1,7 +1,3 @@
-# Pre-built orjson wheel
---find-links https://nirum.org/orjson/wheels/
-orjson==3.10.15
-
 # Core dependencies
 streamlit>=1.32.0
 pydantic>=2.6.1

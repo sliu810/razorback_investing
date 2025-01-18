@@ -10,24 +10,36 @@ Required Environment Variables:
     - OPENAI_API_KEY: API key for GPT models (optional)
 
 Example Commands:
-    # Basic analysis with default settings
+    # Basic analysis with default settings (will use all available models)
     python main.py --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
     
     # Analysis with specific model
     python main.py --video WQ35G6XI8Uw --models claude_35_sonnet
     
-    # Custom analysis
-    python main.py --video WQ35G6XI8Uw --task custom --prompt "List main topics" --models claude_35_sonnet
+    # Analysis with multiple models
+    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
     
-    # Chat mode with Claude
-    python main.py --video WQ35G6XI8Uw --chat claude_35_sonnet
+    # Custom analysis with specific prompt
+    python main.py --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
     
-    # Chat mode with GPT-4
-    python main.py --video WQ35G6XI8Uw --chat gpt_4o
+    # Analysis with research assistant role
+    python main.py --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    
+    # Analysis followed by chat mode with Claude
+    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    
+    # Direct to chat mode with specific model
+    python main.py --video WQ35G6XI8Uw --chat --chat-model claude_35_sonnet
+    
+    # Financial analysis with GPT-4
+    python main.py --video WQ35G6XI8Uw --models gpt_4o --role financial_analyst
     
 Note: 
     - When using URLs, wrap them in quotes to handle special characters
     - Video IDs can be used directly without quotes
+    - The --models flag accepts multiple models separated by spaces
+    - Chat mode can be combined with initial analysis
+    - All commands require appropriate API keys set in environment variables
 """
 
 from youtube_video_client import YouTubeVideoClient
@@ -47,12 +59,14 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def initialize_client(youtube_api_key: str,
+def initialize_client(video_id: str,
+                     youtube_api_key: str,
                      anthropic_api_key: Optional[str] = None,
                      openai_api_key: Optional[str] = None) -> Optional[YouTubeVideoClient]:
     """Initialize YouTubeVideoClient with provided API keys"""
     try:
         client = YouTubeVideoClient(
+            video_id=video_id,
             youtube_api_key=youtube_api_key,
             anthropic_api_key=anthropic_api_key,
             openai_api_key=openai_api_key
@@ -77,7 +91,9 @@ def analyze_video(video: str,
         role_type: Optional role for analysis ('research_assistant' or 'financial_analyst')
     """
     try:
+        video_id = extract_video_id(video)
         client = initialize_client(
+            video_id=video_id,
             youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             openai_api_key=os.getenv("OPENAI_API_KEY")
@@ -85,8 +101,6 @@ def analyze_video(video: str,
         if not client:
             return []
 
-        video_id = extract_video_id(video)
-        
         # Set models if not provided
         if not models:
             models = list(client.get_available_processors().keys())
@@ -106,7 +120,6 @@ def analyze_video(video: str,
             
         # Run analysis
         results = client.analyze_video(
-            video_id=video_id,
             processor_names=models,
             task=task,
             role=role
@@ -118,15 +131,19 @@ def analyze_video(video: str,
         logger.error(f"Error analyzing video: {e}")
         return []
 
-def chat_mode(client: YouTubeVideoClient, video: str, model: str):
-    """Interactive chat mode for discussing a video
-    
-    Args:
-        client: Initialized YouTubeVideoClient
-        video: YouTube video URL or ID
-        model: Model to use for chat (e.g., 'claude_35_sonnet')
-    """
+def chat_mode(video: str, model: str):
+    """Interactive chat mode for discussing a video"""
     video_id = extract_video_id(video)
+    client = initialize_client(
+        video_id=video_id,
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
+        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
+        openai_api_key=os.getenv("OPENAI_API_KEY")
+    )
+    if not client:
+        print("Failed to initialize client. Please check API keys.")
+        return
+        
     print(f"\nStarting chat mode with {model}...")
     print("Type 'exit' to quit, 'switch' to change models, or your question.")
     
@@ -162,8 +179,7 @@ def chat_mode(client: YouTubeVideoClient, video: str, model: str):
             print("\nThinking...")
             response = client.chat(
                 processor_name=current_model,
-                question=question,
-                video_id=video_id
+                question=question
             )
             
             if response:
@@ -177,9 +193,33 @@ def chat_mode(client: YouTubeVideoClient, video: str, model: str):
         except Exception as e:
             print(f"\nError: {e}")
 
-def main():
-    """Command-line interface for video analysis"""
-    parser = argparse.ArgumentParser(description="Analyze YouTube videos using LLM models")
+def parse_args():
+    parser = argparse.ArgumentParser(
+        description="YouTube Video Analysis Tool",
+        epilog="""Examples:
+    # Basic analysis with default settings
+    python main.py --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
+    
+    # Analysis with specific model
+    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet
+    
+    # Analysis with multiple models
+    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
+    
+    # Custom analysis with specific prompt
+    python main.py --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
+    
+    # Analysis with research assistant role
+    python main.py --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    
+    # Analysis followed by chat mode with Claude
+    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    
+    # Direct to chat mode with specific model (skips analysis)
+    python main.py --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
+    """,
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
     parser.add_argument("--video", required=True, help="YouTube video URL or video ID")
     parser.add_argument("--models", nargs="+", help="Models to use for analysis")
     parser.add_argument("--task", choices=["summarize", "custom"], default="summarize",
@@ -189,55 +229,46 @@ def main():
                       help="Optional role for analysis")
     parser.add_argument("--chat", action="store_true", 
                       help="Enter interactive chat mode after analysis")
+    parser.add_argument("--chat-only", action="store_true",
+                      help="Skip analysis and enter chat mode directly")
     parser.add_argument("--chat-model", 
                       help="Specify model to use in chat mode (defaults to first available)")
     
     args = parser.parse_args()
     
-    # Initialize client first
-    client = initialize_client(
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
-        anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
-        openai_api_key=os.getenv("OPENAI_API_KEY")
-    )
-    if not client:
-        print("Failed to initialize client. Please check API keys.")
-        return
+    # Validate chat arguments
+    if args.chat and args.chat_only:
+        parser.error("Please use either --chat OR --chat-only, not both")
+        
+    return args
+
+def main():
+    """Command-line interface for video analysis"""
+    args = parse_args()
     
-    # Run initial analysis
-    results = analyze_video(
-        video=args.video,
-        models=args.models,
-        task_type=args.task,
-        custom_prompt=args.prompt,
-        role_type=args.role
-    )
-    
-    # Print analysis results
-    for result in results:
-        print(f"\nAnalysis by {result['analysis']['model']}:")
-        print("-" * 80)
-        print(result['analysis']['content'])
-        print("-" * 80)
+    # Run initial analysis unless chat-only mode
+    if not args.chat_only:
+        results = analyze_video(
+            video=args.video,
+            models=args.models,
+            task_type=args.task,
+            custom_prompt=args.prompt,
+            role_type=args.role
+        )
+        
+        # Print analysis results
+        for result in results:
+            print(f"\nAnalysis by {result.model}:")
+            print(result.content)
     
     # Enter chat mode if requested
-    if args.chat:
-        available_models = list(client.get_available_processors().keys())
+    if args.chat or args.chat_only:
+        chat_model = args.chat_model
+        if not chat_model:
+            # Use first specified model or let chat_mode handle default
+            chat_model = args.models[0] if args.models else None
         
-        # Determine which model to use for chat
-        chat_model = None
-        if args.chat_model:
-            if args.chat_model in available_models:
-                chat_model = args.chat_model
-            else:
-                print(f"\nRequested chat model '{args.chat_model}' not available.")
-                print(f"Available models: {', '.join(available_models)}")
-                return
-        else:
-            # Use the first specified model or first available
-            chat_model = args.models[0] if args.models else available_models[0]
-        
-        chat_mode(client, args.video, chat_model)
+        chat_mode(args.video, chat_model)
 
 if __name__ == "__main__":
     main()

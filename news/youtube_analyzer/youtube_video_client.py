@@ -6,8 +6,28 @@ from video import Video
 import logging
 from googleapiclient.discovery import build
 import re
+from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
+
+@dataclass
+class AnalysisResult:
+    """Represents a single analysis result from an LLM processor
+    
+    Attributes:
+        content: Raw analysis text from the LLM
+        model: Model identifier (e.g., "anthropic/claude-3-sonnet")
+        timestamp: When the analysis was performed
+        role: Role used for analysis (e.g., "research_assistant")
+        task: Task performed (e.g., "summarize")
+        html: Formatted HTML version of the analysis
+    """
+    content: str
+    model: str
+    timestamp: datetime
+    role: Optional[str]
+    task: str
+    html: str
 
 class YouTubeVideoClient:
     """Client for managing YouTube video analysis with multiple LLM processors
@@ -29,6 +49,7 @@ class YouTubeVideoClient:
         >>> # Initialize with all processors
         >>> client = YouTubeVideoClient(
         ...     youtube_api_key="your_yt_key",
+        ...     video_id="your_video_id",
         ...     anthropic_api_key="your_anthropic_key",
         ...     openai_api_key="your_openai_key"
         ... )
@@ -39,6 +60,7 @@ class YouTubeVideoClient:
         >>> # Or initialize with just Claude
         >>> client = YouTubeVideoClient(
         ...     youtube_api_key="your_yt_key",
+        ...     video_id="your_video_id",
         ...     anthropic_api_key="your_anthropic_key"
         ... )
         >>> print(client.processors.keys())  # ['claude_35_sonnet']
@@ -54,189 +76,154 @@ class YouTubeVideoClient:
         >>> client.add_processor("my_claude", custom_config)
     """
     
-    def __init__(self, youtube_api_key: str, anthropic_api_key: Optional[str] = None, openai_api_key: Optional[str] = None):
-        """Initialize YouTube video client with common processors
+    def __init__(self, 
+                 video_id: str,
+                 youtube_api_key: str, 
+                 anthropic_api_key: Optional[str] = None, 
+                 openai_api_key: Optional[str] = None):
+        """Initialize YouTube video client with video and common processors
         
         Args:
+            video_id: YouTube video ID to analyze
             youtube_api_key: YouTube Data API key
             anthropic_api_key: Optional API key for Claude models
             openai_api_key: Optional API key for GPT models
-            
-        Note:
-            Common processors (Claude and GPT-4) will be added automatically if their
-            API keys are provided.
-            
-        Example:
-            >>> # Initialize with all processors
-            >>> client = YouTubeVideoClient(
-            ...     youtube_api_key="your_yt_key",
-            ...     anthropic_api_key="your_anthropic_key",
-            ...     openai_api_key="your_openai_key"
-            ... )
-            >>> 
-            >>> # Or initialize with just Claude
-            >>> client = YouTubeVideoClient(
-            ...     youtube_api_key="your_yt_key",
-            ...     anthropic_api_key="your_anthropic_key"
-            ... )
         """
-        self.youtube = build('youtube', 'v3', developerKey=youtube_api_key)
-        self.processors: Dict[str, LLMProcessor] = {}
-        self.analysis_results: List[Dict] = []
+        self._youtube = build('youtube', 'v3', developerKey=youtube_api_key)
+        self._processors: Dict[str, LLMProcessor] = {}
+        self.analysis_results: List[AnalysisResult] = []
+        self._video: Optional[Video] = None
         
+        self._initialize_video(video_id)
         self._initialize_common_processors(anthropic_api_key, openai_api_key)
 
-    def _initialize_common_processors(self, anthropic_api_key: Optional[str], openai_api_key: Optional[str]) -> None:
-        """Initialize common processors with provided API keys
+    def _initialize_video(self, video_id: str) -> None:
+        """Initialize video object and fetch its data
         
         Args:
-            anthropic_api_key: API key for Claude models
-            openai_api_key: API key for GPT models
+            video_id: YouTube video ID
         """
+        try:
+            self._video = Video(video_id)
+            self._video.get_video_metadata_and_transcript()
+            logger.info(f"Initialized video: {video_id}")
+        except Exception as e:
+            logger.error(f"Failed to initialize video {video_id}: {e}")
+            raise
+
+    def _initialize_common_processors(self, anthropic_api_key: Optional[str], openai_api_key: Optional[str]) -> None:
+        """Initialize common LLM processors"""
         if anthropic_api_key:
             try:
-                claude_config = LLMConfig(
+                config = LLMConfig(
                     provider="anthropic",
                     model_name="claude-3-5-sonnet-20241022",
-                    api_key=anthropic_api_key,
-                    temperature=0.7
+                    api_key=anthropic_api_key
                 )
-                self.add_processor("claude_35_sonnet", claude_config)
-                logger.info("Added Claude 3.5 Sonnet processor")
+                self._processors["claude_35_sonnet"] = LLMProcessor(config)  # Make sure this is _processors
             except Exception as e:
+                logger.error(f"Failed to initialize processor 'claude_35_sonnet': {e}")
                 logger.warning(f"Could not add Claude processor: {e}")
-        
+
         if openai_api_key:
             try:
-                gpt4_config = LLMConfig(
+                config = LLMConfig(
                     provider="openai",
                     model_name="gpt-4o",
-                    api_key=openai_api_key,
-                    temperature=0.7
+                    api_key=openai_api_key
                 )
-                self.add_processor("gpt_4o", gpt4_config)
-                logger.info("Added GPT-4 processor")
+                self._processors["gpt_4o"] = LLMProcessor(config)  # Make sure this is _processors
             except Exception as e:
+                logger.error(f"Failed to initialize processor 'gpt_4o': {e}")
                 logger.warning(f"Could not add GPT-4 processor: {e}")
 
     def add_processor(self, name: str, config: LLMConfig) -> None:
-        """Add a custom processor with given configuration
-        
-        Args:
-            name: Unique name for the processor
-            config: LLM configuration
-        """
+        """Add a custom processor with given configuration"""
         try:
-            self.processors[name] = LLMProcessor(config)
+            self._processors[name] = LLMProcessor(config)
             logger.info(f"Processor '{name}' initialized successfully")
         except Exception as e:
             logger.error(f"Failed to initialize processor '{name}': {e}")
             raise
 
     def analyze_video(self, 
-                     video_id: str, 
                      processor_names: List[str], 
                      task: Task,
                      role: Optional[Role] = None,
-                     status_container=None) -> List[Dict]:
-        """Analyze YouTube video using specified processors and role/task
+                     status_container=None) -> List[AnalysisResult]:
+        """Analyze video using specified processors and role/task
         
         Args:
-            video_id: YouTube video ID
-            processor_names: List of processor names to use for analysis
-            task: Analysis task to perform
-            role: Optional role for the analysis
-            status_container: Optional UI container for status updates
+            processor_names: List of processor names to use (e.g., ["claude_35_sonnet", "gpt_4o"])
+            task: Task configuration defining what analysis to perform
+            role: Optional role configuration defining the analyzer's perspective
+            status_container: Optional UI container for showing progress (e.g., streamlit)
             
         Returns:
-            List of dictionaries containing analysis results. Each dictionary has:
-            {
-                'video_info': {
-                    'id': str,          # YouTube video ID
-                    'url': str,         # Full YouTube URL
-                    'title': str,       # Video title
-                    'duration': float,  # Duration in minutes
-                    'channel': str,     # Channel name
-                    'transcript': str   # Full video transcript
-                },
-                'analysis': {
-                    'content': str,     # Analysis text from LLM
-                    'model': str,       # Format: "provider/model_name"
-                    'timestamp': str,   # ISO format timestamp
-                    'role': str,        # Name of role used
-                    'task': str         # Name of task performed
-                },
-                'html': str            # Formatted HTML version of analysis
-            }
+            List[AnalysisResult]: List of analysis results from each processor
+            
+        Raises:
+            ValueError: If no processors available or no processor names specified
         """
-        if not self.processors:
+        if not self._processors:
             raise ValueError("No processors available. Please add processors before analyzing videos.")
         
         if not processor_names:
             raise ValueError("No processor names specified. Please select at least one processor.")
 
         try:
-            # Get video data
+            # Show analysis start in UI if container provided
             if status_container:
-                status_container.info("📥 Fetching video metadata and transcript...")
-            logger.info(f"Fetching video metadata and transcript for {video_id}")
+                status_container.info("🤖 Starting analysis...")
             
-            video = Video(video_id)
-            video.get_video_metadata_and_transcript()
-            
-            if not video.transcript or not video.transcript[0]:
+            # Verify transcript availability
+            if not self._video.transcript or not self._video.transcript[0]:
                 logger.error("No transcript available")
                 if status_container:
                     status_container.error("❌ No transcript available for this video")
                 return []
 
-            transcript_text = video.transcript[0]
             analyses = []
-
+            # Process with each requested LLM
             for proc_name in processor_names:
-                if proc_name not in self.processors:
+                if proc_name not in self._processors:
                     logger.error(f"Processor '{proc_name}' not found")
                     continue
 
                 try:
+                    # Update UI with current processor
                     if status_container:
                         status_container.info(f"🤖 Analyzing with {proc_name}...")
                     logger.info(f"Starting analysis with {proc_name}")
 
-                    processor = self.processors[proc_name]
+                    # Get processor and analyze transcript
+                    processor = self._processors[proc_name]
                     analysis = processor.process_text(
-                        text=transcript_text,
+                        text=self._video.transcript[0],
                         task=task,
                         role=role
                     )
 
                     if analysis:
-                        result = {
-                            'video_info': {
-                                'id': video.video_id,
-                                'url': video.url,
-                                'title': video.title,
-                                'duration': video.duration_minutes,
-                                'channel': video.channel_name,
-                                'transcript': transcript_text
-                            },
-                            'analysis': {
-                                'content': analysis,
-                                'model': f"{processor.config.provider}/{processor.config.model_name}",
-                                'timestamp': datetime.now().isoformat(),
-                                'role': role.name if role else None,
-                                'task': task.name
-                            },
-                            'html': self._format_analysis_result(video, analysis, processor.config)
-                        }
+                        # Structure the analysis result
+                        result = AnalysisResult(
+                            content=analysis,
+                            model=f"{processor.config.provider}/{processor.config.model_name}",
+                            timestamp=datetime.now(),
+                            role=role.name if role else None,
+                            task=task.name,
+                            html=self._format_analysis_result(self._video, analysis, processor.config)
+                        )
                         analyses.append(result)
                         self.analysis_results.append(result)
                         
+                        # Update UI with success
                         if status_container:
                             status_container.success(f"✅ Analysis complete for {proc_name}")
                         logger.info(f"Analysis complete for {proc_name}")
 
                 except Exception as e:
+                    # Handle processor-specific errors
                     if status_container:
                         status_container.error(f"❌ Error with {proc_name}: {str(e)}")
                     logger.error(f"Error with {proc_name}: {e}")
@@ -245,37 +232,30 @@ class YouTubeVideoClient:
             return analyses
 
         except Exception as e:
+            # Handle general analysis errors
             logger.error(f"Error analyzing video: {e}")
             if status_container:
                 status_container.error(f"❌ Error analyzing video: {e}")
             return []
 
-    def chat(self, processor_name: str, question: str, video_id: str) -> Optional[str]:
+    def chat(self, processor_name: str, question: str) -> Optional[str]:
         """Chat about video content using specified processor
         
         Args:
             processor_name: Name of the processor to use
             question: Question to ask about the video
-            video_id: YouTube video ID
-            
-        Returns:
-            Model's response or None if error occurs
         """
-        if processor_name not in self.processors:
+        if processor_name not in self._processors:
             logger.error(f"Processor '{processor_name}' not found")
             return None
 
         try:
-            # Get video if not already analyzed
-            video = Video(video_id)
-            video.get_video_metadata_and_transcript()
-            
-            if not video.transcript or not video.transcript[0]:
+            if not self._video.transcript or not self._video.transcript[0]:
                 logger.error("No transcript available for chat")
                 return None
 
-            processor = self.processors[processor_name]
-            processor.init_chat_with_context(video.transcript[0])
+            processor = self._processors[processor_name]
+            processor.init_chat_with_context(self._video.transcript[0])
             return processor.chat(question)
 
         except Exception as e:
@@ -424,5 +404,35 @@ class YouTubeVideoClient:
                 'model': processor.config.model_name,
                 'temperature': processor.config.temperature
             }
-            for name, processor in self.processors.items()
+            for name, processor in self._processors.items()
         }
+
+    @property
+    def title(self) -> str:
+        """Get video title"""
+        return self._video.title
+
+    @property
+    def url(self) -> str:
+        """Get video URL"""
+        return self._video.url
+
+    @property
+    def transcript(self) -> Optional[str]:
+        """Get video transcript text"""
+        return self._video.transcript[0] if self._video.transcript else None
+
+    @property
+    def duration_minutes(self) -> float:
+        """Get video duration in minutes"""
+        return self._video.duration_minutes
+
+    @property
+    def channel_name(self) -> str:
+        """Get channel name"""
+        return self._video.channel_name
+
+    @property
+    def published_at(self) -> datetime:
+        """Get video publication date"""
+        return self._video.published_at

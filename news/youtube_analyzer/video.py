@@ -139,8 +139,33 @@ class Video:
             'Transcript': self.transcript
         }
 
-    def serialize_video_to_file(self, root_dir: str) -> Optional[str]:
-        """Save video information to a JSON file"""
+    def generate_default_filename(self, title: str, language: str) -> str:
+        """Generate a default standardized filename from title and language
+        
+        Args:
+            title: Title to use in filename
+            language: Language code (e.g., 'en', 'es', 'fr')
+        
+        Returns:
+            str: Generated filename with format: {sanitized_title}_{language}.json
+            
+        Example:
+            >>> video.generate_default_filename("SpaceX Launch", "en")
+            'spacex_launch_en.json'
+        """
+        valid_title = sanitize_filename(title, max_length=100)
+        return f"{valid_title}_{language}.json"
+
+    def serialize_video_to_json(self, root_dir: str, file_name: Optional[str] = None) -> Optional[str]:
+        """Save video information to a JSON file
+        
+        Args:
+            root_dir: Directory to save the file
+            file_name: Optional custom file name. If None, generates name from video title
+        
+        Returns:
+            str: Path to the saved file, or None if save failed
+        """
         if not self._metadata_fetched:
             self.get_video_metadata_and_transcript()
 
@@ -148,10 +173,11 @@ class Video:
             logger.warning(f"No video info available to save for video ID: {self.video_id}")
             return None
 
-        transcript_language = self.transcript[1] if self.transcript else 'en'
-        valid_title = sanitize_filename(self.title, max_length=100)
-
-        file_name = f"{valid_title}_{transcript_language}.json"
+        if file_name is None:
+            # Use default naming convention
+            transcript_language = self.transcript[1] if self.transcript else 'en'
+            file_name = self.generate_default_filename(self.title, transcript_language)
+        
         file_path = os.path.join(root_dir, file_name)
         os.makedirs(os.path.dirname(file_path), exist_ok=True)
         
@@ -161,7 +187,7 @@ class Video:
         return file_path
 
     @classmethod
-    def from_json_file(cls, file_path: str) -> 'Video':
+    def create_from_json_file(cls, file_path: str) -> 'Video':
         """Create a Video object from a JSON file"""
         with open(file_path, 'r', encoding='utf-8') as f:
             data = json.load(f)

@@ -5,32 +5,39 @@ import logging
 from isodate import parse_duration
 from typing import Tuple
 
-def iso_duration_to_minutes(iso_duration):
+def iso_duration_to_minutes(duration: str) -> int:
+    """Convert ISO 8601 duration to minutes
+    
+    Examples:
+        PT1H30M -> 90 (1 hour 30 minutes)
+        PT30M -> 30 (30 minutes)
+        P1DT2H30M -> 1590 (1 day 2 hours 30 minutes)
     """
-    Convert ISO 8601 duration format to total minutes.
-
-    Args:
-        iso_duration (str): Duration in ISO 8601 format.
-
-    Returns:
-        int: Total duration in minutes, rounded up if there are any seconds.
-    """
-    pattern = re.compile(r'PT((?P<hours>\d+)H)?((?P<minutes>\d+)M)?((?P<seconds>\d+)S)?')
-    matches = pattern.match(iso_duration)
-    if not matches:
-        logging.warning(f"Invalid ISO duration format: {iso_duration}")
-        return 0  # Return 0 if the pattern does not match
-
-    hours = int(matches.group('hours') or 0)
-    minutes = int(matches.group('minutes') or 0)
-    seconds = int(matches.group('seconds') or 0)
-
-    # Calculate total minutes, rounding up if there are any remaining seconds
-    total_minutes = hours * 60 + minutes
-    if seconds > 0:
-        total_minutes += 1  # Round up if there are any remaining seconds
-
-    return total_minutes
+    try:
+        # Extract days, hours, minutes, and seconds using regex
+        days = re.search(r'(\d+)D', duration)
+        hours = re.search(r'(\d+)H', duration)
+        minutes = re.search(r'(\d+)M', duration)
+        seconds = re.search(r'(\d+)S', duration)
+        
+        total_minutes = 0
+        
+        # Convert each component to minutes
+        if days:
+            total_minutes += int(days.group(1)) * 24 * 60
+        if hours:
+            total_minutes += int(hours.group(1)) * 60
+        if minutes:
+            total_minutes += int(minutes.group(1))
+        if seconds:
+            # Round up seconds to nearest minute
+            total_minutes += (int(seconds.group(1)) + 59) // 60
+            
+        return total_minutes
+        
+    except Exception as e:
+        logging.warning(f"Invalid ISO duration format: {duration}")
+        return 0
 
 def get_formatted_date_today(timezone_str='America/Chicago'):
     timezone = pytz.timezone(timezone_str)
@@ -129,3 +136,18 @@ def get_start_end_dates_for_period(period_type: str, number: int = 1, timezone: 
         raise ValueError("Unsupported period type specified.")
     
     return start_date, end_date
+
+def extract_video_id(video_input: str) -> str:
+    """Extract video ID from URL or return the ID if directly provided
+    
+    Args:
+        video_input: YouTube video URL or video ID
+        
+    Returns:
+        str: YouTube video ID
+    """
+    if "youtube.com/watch?v=" in video_input:
+        return video_input.split("v=")[-1].split("&")[0]
+    elif "youtu.be/" in video_input:
+        return video_input.split("youtu.be/")[-1].split("?")[0]
+    return video_input  # Assume it's already a video ID

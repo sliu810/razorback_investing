@@ -5,13 +5,18 @@ Streamlit interface for YouTube video analysis
 import warnings
 warnings.filterwarnings('ignore', message='file_cache is only supported with oauth2client<4.0.0')
 
+import os
+import logging
+import sys
+
+# Debug info just before the problematic import
+print("Current directory:", os.getcwd())
+print("Files in directory:", os.listdir())
+
 import streamlit as st
 from youtube_video_client import YouTubeVideoClient
 from llm_processor import Task, Role
 from utils import extract_video_id
-import os
-import logging
-import sys
 
 # Configure logging
 logging.basicConfig(

@@ -130,7 +130,7 @@ def main():
                         st.session_state.current_video_id != video_id):
             logger.info("Initializing YouTubeVideoClient")
             st.session_state.client = initialize_client(video_id)
-            st.session_state.current_video_id = video_id
+            st.session_state.current_video_id = video_id  # Set this right after client initialization
             logger.info("Client initialization complete")
 
     # Sidebar
@@ -222,47 +222,41 @@ def main():
             return
             
         try:
-            # Run analysis when button is clicked
-            if analyze_button:
-                logger.info("Analyze button clicked - starting analysis")
-                with st.spinner("Analyzing video..."):
-                    results = st.session_state.client.analyze_video(
-                        processor_names=st.session_state.selected_models,
-                        task=st.session_state.selected_task,
-                        role=st.session_state.selected_role
-                    )
-                    st.session_state.current_results = results
-                logger.info("Analysis complete")
-
-            # Create tabs
+            # Create tabs first
             logger.info("Creating tabs")
             tab1, tab2 = st.tabs(["Analysis", "Chat"])
             
             with tab1:  # Analysis tab
                 logger.info("Rendering Analysis tab")
-                if st.session_state.current_results is not None:
-                    # Display video information using client properties
+                # Show video title first
+                if st.session_state.client:
                     st.header(st.session_state.client.title)
                     st.markdown(f"[Watch Video]({st.session_state.client.url})")
-                    
-                    # Display analysis results using new AnalysisResult structure
+
+                if analyze_button:
+                    logger.info("Analyze button clicked - starting analysis")
+                    with st.spinner("Analyzing video..."):
+                        results = st.session_state.client.analyze_video(
+                            processor_names=st.session_state.selected_models,
+                            task=st.session_state.selected_task,
+                            role=st.session_state.selected_role
+                        )
+                        st.session_state.current_results = results
+                    logger.info("Analysis complete")
+
+                if st.session_state.current_results is not None:
                     for result in st.session_state.current_results:
-                        with st.expander(
-                            f"Analysis by {result.model}", 
-                            expanded=True
-                        ):
+                        with st.expander(f"Analysis by {result.model}", expanded=True):
                             st.markdown(result.html, unsafe_allow_html=True)
-                    
-                    # Display transcript using client property
-                    with st.expander("Original Transcript", expanded=False):
+                
+                # Show transcript expander last
+                if st.session_state.client:
+                    with st.expander("Full Transcript", expanded=False):
                         st.markdown(st.session_state.client.transcript)
             
             with tab2:  # Chat tab
                 logger.info("Rendering Chat tab")
                 if st.session_state.current_video_id:
-                    # Set active tab to Chat when user starts chatting
-                    if "messages" in st.session_state and len(st.session_state.messages) > 0:
-                        st.session_state.active_tab = "Chat"
                     chat_interface(
                         st.session_state.client,
                         st.session_state.current_video_id,

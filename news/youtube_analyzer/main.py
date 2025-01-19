@@ -43,7 +43,7 @@ Note:
 """
 
 from youtube_video_client import YouTubeVideoClient
-from llm_processor import Task, Role
+from llm_processor import Task, Role, LLMConfig
 from utils import extract_video_id
 import os
 import logging
@@ -67,10 +67,33 @@ def initialize_client(video_id: str,
     try:
         client = YouTubeVideoClient(
             video_id=video_id,
-            youtube_api_key=youtube_api_key,
-            anthropic_api_key=anthropic_api_key,
-            openai_api_key=openai_api_key
+            youtube_api_key=youtube_api_key
         )
+        
+        # Add Claude processor if API key available
+        if anthropic_api_key:
+            try:
+                claude_config = LLMConfig(
+                    provider="anthropic",
+                    model_name="claude-3-5-sonnet-20241022",
+                    api_key=anthropic_api_key
+                )
+                client.add_processor("claude_35_sonnet", claude_config)
+            except Exception as e:
+                logger.warning(f"Could not add Claude processor: {e}")
+        
+        # Add GPT processor if API key available
+        if openai_api_key:
+            try:
+                gpt_config = LLMConfig(
+                    provider="openai",
+                    model_name="gpt-4o",
+                    api_key=openai_api_key
+                )
+                client.add_processor("gpt_4o", gpt_config)
+            except Exception as e:
+                logger.warning(f"Could not add GPT-4 processor: {e}")
+        
         return client
     except Exception as e:
         logger.error(f"Error initializing client: {e}")
@@ -103,7 +126,7 @@ def analyze_video(video: str,
 
         # Set models if not provided
         if not models:
-            models = list(client.get_available_processors().keys())
+            models = list(client.get_processors().keys())
             
         # Configure task
         if task_type == "custom" and custom_prompt:
@@ -147,7 +170,7 @@ def chat_mode(video: str, model: str):
     print(f"\nStarting chat mode with {model}...")
     print("Type 'exit' to quit, 'switch' to change models, or your question.")
     
-    available_models = list(client.get_available_processors().keys())
+    available_models = list(client.get_processors().keys())
     current_model = model
     
     while True:

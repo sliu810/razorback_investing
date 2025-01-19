@@ -78,16 +78,12 @@ class YouTubeVideoClient:
     
     def __init__(self, 
                  video_id: str,
-                 youtube_api_key: str, 
-                 anthropic_api_key: Optional[str] = None, 
-                 openai_api_key: Optional[str] = None):
-        """Initialize YouTube video client with video and common processors
+                 youtube_api_key: str):
+        """Initialize YouTube video client
         
         Args:
             video_id: YouTube video ID to analyze
             youtube_api_key: YouTube Data API key
-            anthropic_api_key: Optional API key for Claude models
-            openai_api_key: Optional API key for GPT models
         """
         self._youtube = build('youtube', 'v3', developerKey=youtube_api_key)
         self._processors: Dict[str, LLMProcessor] = {}
@@ -95,7 +91,6 @@ class YouTubeVideoClient:
         self._video: Optional[Video] = None
         
         self._initialize_video(video_id)
-        self._initialize_common_processors(anthropic_api_key, openai_api_key)
 
     def _initialize_video(self, video_id: str) -> None:
         """Initialize video object and fetch its data
@@ -110,32 +105,6 @@ class YouTubeVideoClient:
         except Exception as e:
             logger.error(f"Failed to initialize video {video_id}: {e}")
             raise
-
-    def _initialize_common_processors(self, anthropic_api_key: Optional[str], openai_api_key: Optional[str]) -> None:
-        """Initialize common LLM processors"""
-        if anthropic_api_key:
-            try:
-                config = LLMConfig(
-                    provider="anthropic",
-                    model_name="claude-3-5-sonnet-20241022",
-                    api_key=anthropic_api_key
-                )
-                self._processors["claude_35_sonnet"] = LLMProcessor(config)  # Make sure this is _processors
-            except Exception as e:
-                logger.error(f"Failed to initialize processor 'claude_35_sonnet': {e}")
-                logger.warning(f"Could not add Claude processor: {e}")
-
-        if openai_api_key:
-            try:
-                config = LLMConfig(
-                    provider="openai",
-                    model_name="gpt-4o",
-                    api_key=openai_api_key
-                )
-                self._processors["gpt_4o"] = LLMProcessor(config)  # Make sure this is _processors
-            except Exception as e:
-                logger.error(f"Failed to initialize processor 'gpt_4o': {e}")
-                logger.warning(f"Could not add GPT-4 processor: {e}")
 
     def add_processor(self, name: str, config: LLMConfig) -> None:
         """Add a custom processor with given configuration"""
@@ -154,7 +123,7 @@ class YouTubeVideoClient:
         """Analyze video using specified processors and role/task
         
         Args:
-            processor_names: List of processor names to use (e.g., ["claude_35_sonnet", "gpt_4o"])
+            processor_names: List of processor names to use
             task: Task configuration defining what analysis to perform
             role: Optional role configuration defining the analyzer's perspective
             status_container: Optional UI container for showing progress (e.g., streamlit)
@@ -163,13 +132,14 @@ class YouTubeVideoClient:
             List[AnalysisResult]: List of analysis results from each processor
             
         Raises:
-            ValueError: If no processors available or no processor names specified
+            ValueError: If processor doesn't exist. Use add_processor() to add new processors.
         """
-        if not self._processors:
-            raise ValueError("No processors available. Please add processors before analyzing videos.")
-        
-        if not processor_names:
-            raise ValueError("No processor names specified. Please select at least one processor.")
+        missing_processors = [name for name in processor_names if name not in self._processors]
+        if missing_processors:
+            raise ValueError(
+                f"Processors not found: {', '.join(missing_processors)}. "
+                "Use add_processor() to add new processors before analysis."
+            )
 
         try:
             # Show analysis start in UI if container provided
@@ -244,10 +214,16 @@ class YouTubeVideoClient:
         Args:
             processor_name: Name of the processor to use
             question: Question to ask about the video
+            
+        Raises:
+            ValueError: If processor doesn't exist. Use add_processor() to add new processors.
         """
-        if processor_name not in self._processors:
-            logger.error(f"Processor '{processor_name}' not found")
-            return None
+        missing_processors = [processor_name] if processor_name not in self._processors else []
+        if missing_processors:
+            raise ValueError(
+                f"Processors not found: {', '.join(missing_processors)}. "
+                "Use add_processor() to add new processors before chatting."
+            )
 
         try:
             if not self._video.transcript or not self._video.transcript[0]:
@@ -347,46 +323,8 @@ class YouTubeVideoClient:
         # Join all lines and return
         return '\n'.join(formatted_lines)
 
-    def add_common_processors(self, use_claude: bool = True, use_gpt4: bool = True) -> None:
-        """Add commonly used processors with standard configurations
-        
-        This is a convenience method for adding the most commonly used processors
-        with recommended settings. For custom configurations, use add_processor()
-        directly.
-        
-        Args:
-            use_claude: Whether to add Claude 3.5 Sonnet processor
-            use_gpt4: Whether to add GPT-4 processor
-            
-        Raises:
-            ValueError: If required API keys are not set in environment variables
-        """
-        if use_claude:
-            if not os.getenv("ANTHROPIC_API_KEY"):
-                raise ValueError("ANTHROPIC_API_KEY environment variable is required for Claude")
-                
-            claude_config = LLMConfig(
-                provider="anthropic",
-                model_name="claude-3-5-sonnet-20241022",
-                api_key=os.getenv("ANTHROPIC_API_KEY"),
-                temperature=0.7  # Standard temperature for balanced output
-            )
-            self.add_processor("claude_35_sonnet", claude_config)
-            
-        if use_gpt4:
-            if not os.getenv("OPENAI_API_KEY"):
-                raise ValueError("OPENAI_API_KEY environment variable is required for GPT-4")
-                
-            gpt4_config = LLMConfig(
-                provider="openai",
-                model_name="gpt-4o",
-                api_key=os.getenv("OPENAI_API_KEY"),
-                temperature=0.7  # Standard temperature for balanced output
-            )
-            self.add_processor("gpt_4o", gpt4_config)
-
-    def get_available_processors(self) -> Dict[str, Dict]:
-        """Get information about all available processors
+    def get_processors(self) -> Dict[str, Dict]:
+        """Get information about all processors
         
         Returns:
             Dictionary mapping processor names to their configurations:

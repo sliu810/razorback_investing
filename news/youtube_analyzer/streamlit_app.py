@@ -15,7 +15,7 @@ print("Files in directory:", os.listdir())
 
 import streamlit as st
 from youtube_video_client import YouTubeVideoClient
-from llm_processor import Task, Role
+from llm_processor import Task, Role, LLMConfig
 from utils import extract_video_id
 
 # Configure logging
@@ -25,6 +25,51 @@ logging.basicConfig(
     handlers=[logging.StreamHandler(sys.stdout)]
 )
 logger = logging.getLogger(__name__)
+
+# Define available models at app level
+AVAILABLE_MODELS = {
+    "claude_35_sonnet": {
+        "provider": "anthropic",
+        "model_name": "claude-3-5-sonnet-20241022",
+        "display_name": "Claude 3.5 Sonnet"
+    },
+    "gpt_4o": {
+        "provider": "openai",
+        "model_name": "gpt-4o",
+        "display_name": "GPT-4 Turbo"
+    }
+}
+
+def initialize_client(video_id: str) -> YouTubeVideoClient:
+    """Initialize client with default processors"""
+    client = YouTubeVideoClient(
+        video_id=video_id,
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
+    )
+    
+    # Add Claude processor
+    try:
+        claude_config = LLMConfig(
+            provider="anthropic",
+            model_name="claude-3-5-sonnet-20241022",
+            api_key=os.getenv("ANTHROPIC_API_KEY")
+        )
+        client.add_processor("claude_35_sonnet", claude_config)
+    except Exception as e:
+        logger.warning(f"Could not add Claude processor: {e}")
+    
+    # Add GPT processor
+    try:
+        gpt_config = LLMConfig(
+            provider="openai",
+            model_name="gpt-4o",
+            api_key=os.getenv("OPENAI_API_KEY")
+        )
+        client.add_processor("gpt_4o", gpt_config)
+    except Exception as e:
+        logger.warning(f"Could not add GPT-4 processor: {e}")
+    
+    return client
 
 def chat_interface(client, video_id: str, processors: dict):
     """Chat interface using Streamlit's chat components.
@@ -68,14 +113,24 @@ def main():
     if 'client' not in st.session_state:
         logger.info("Initializing session state")
         st.session_state.client = None
-        st.session_state.processors = {}
-        st.session_state.selected_models = []
+        st.session_state.selected_models = list(AVAILABLE_MODELS.keys())  # Default all selected
         st.session_state.selected_role = Role.research_assistant()
         st.session_state.selected_task = Task.summarize()
         st.session_state.messages = []
         st.session_state.current_video_id = None
         st.session_state.current_results = None
         st.session_state.video_url = None
+
+    # Initialize client if we have a video URL
+    if st.session_state.video_url:
+        video_id = extract_video_id(st.session_state.video_url)
+        if video_id and (st.session_state.client is None or 
+                        st.session_state.current_video_id != video_id):
+            logger.info("Initializing YouTubeVideoClient")
+            st.session_state.client = initialize_client(video_id)
+            st.session_state.selected_models = list(st.session_state.client.get_processors().keys())
+            st.session_state.current_video_id = video_id
+            logger.info("Client initialization complete")
 
     # Sidebar
     with st.sidebar:
@@ -89,10 +144,13 @@ def main():
         
         # Model selection
         st.subheader("Models")
-        available_models = list(st.session_state.processors.keys())
         st.session_state.selected_models = [
-            model for model in available_models 
-            if st.checkbox(model, value=True, key=f"model_{model}")
+            model_id for model_id, model_info in AVAILABLE_MODELS.items()
+            if st.checkbox(
+                model_info["display_name"], 
+                value=model_id in st.session_state.selected_models,
+                key=f"model_{model_id}"
+            )
         ]
         
         # Role selection
@@ -163,22 +221,6 @@ def main():
             return
             
         try:
-            # Initialize client if needed
-            if (st.session_state.client is None or 
-                st.session_state.current_video_id != video_id):
-                logger.info("Initializing YouTubeVideoClient")
-                st.session_state.client = YouTubeVideoClient(
-                    video_id=video_id,
-                    youtube_api_key=os.getenv('YOUTUBE_API_KEY'),
-                    anthropic_api_key=os.getenv('ANTHROPIC_API_KEY'),
-                    openai_api_key=os.getenv('OPENAI_API_KEY')
-                )
-                logger.info("Getting available processors")
-                st.session_state.processors = st.session_state.client.get_available_processors()
-                st.session_state.selected_models = list(st.session_state.processors.keys())
-                st.session_state.current_video_id = video_id
-                logger.info("Client initialization complete")
-
             # Run analysis when button is clicked
             if analyze_button:
                 logger.info("Analyze button clicked - starting analysis")
@@ -223,7 +265,7 @@ def main():
                     chat_interface(
                         st.session_state.client,
                         st.session_state.current_video_id,
-                        st.session_state.processors
+                        st.session_state.client.get_processors()
                     )
 
         except Exception as e:
@@ -239,14 +281,8 @@ def analyze_video():
             # Initialize or reinitialize client if needed
             if (st.session_state.client is None or 
                 st.session_state.current_video_id != video_id):
-                st.session_state.client = YouTubeVideoClient(
-                    video_id=video_id,
-                    youtube_api_key=os.getenv('YOUTUBE_API_KEY'),
-                    anthropic_api_key=os.getenv('ANTHROPIC_API_KEY'),
-                    openai_api_key=os.getenv('OPENAI_API_KEY')
-                )
-                st.session_state.processors = st.session_state.client.get_available_processors()
-                st.session_state.selected_models = list(st.session_state.processors.keys())
+                st.session_state.client = initialize_client(video_id)
+                st.session_state.selected_models = list(st.session_state.client.get_processors().keys())
                 st.session_state.current_video_id = video_id
             
             with st.spinner("Analyzing video..."):

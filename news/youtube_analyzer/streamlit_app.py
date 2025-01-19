@@ -128,7 +128,6 @@ def main():
                         st.session_state.current_video_id != video_id):
             logger.info("Initializing YouTubeVideoClient")
             st.session_state.client = initialize_client(video_id)
-            st.session_state.selected_models = list(st.session_state.client.get_processors().keys())
             st.session_state.current_video_id = video_id
             logger.info("Client initialization complete")
 
@@ -282,7 +281,6 @@ def analyze_video():
             if (st.session_state.client is None or 
                 st.session_state.current_video_id != video_id):
                 st.session_state.client = initialize_client(video_id)
-                st.session_state.selected_models = list(st.session_state.client.get_processors().keys())
                 st.session_state.current_video_id = video_id
             
             with st.spinner("Analyzing video..."):

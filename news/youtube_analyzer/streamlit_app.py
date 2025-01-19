@@ -17,6 +17,8 @@ import streamlit as st
 from youtube_video_client import YouTubeVideoClient
 from llm_processor import Task, Role, LLMConfig
 from utils import extract_video_id
+from tenacity import retry, stop_after_attempt, wait_exponential
+from youtube_transcript_api import YouTubeTranscriptApi
 
 # Configure logging
 logging.basicConfig(
@@ -268,7 +270,7 @@ def main():
                     )
 
         except Exception as e:
-            st.error(f"Error loading video: {str(e)}")
+            st.error("Unable to analyze this video - subtitles/closed captions are not available. Please try a different video or contact the video owner to enable captions.")
             logger.error(f"Error initializing client: {e}", exc_info=True)
             return
 
@@ -290,6 +292,19 @@ def analyze_video():
                     role=st.session_state.selected_role
                 )
                 st.session_state.current_results = results
+
+@retry(
+    stop=stop_after_attempt(3),  # Try 3 times
+    wait=wait_exponential(multiplier=1, min=4, max=10),  # Wait 4-10 seconds between attempts
+    reraise=True
+)
+def fetch_transcript_with_retry(video_id):
+    try:
+        transcript = YouTubeTranscriptApi.get_transcript(video_id)
+        return transcript
+    except Exception as e:
+        logger.warning(f"Attempt to fetch transcript failed: {str(e)}")
+        raise  # This will trigger a retry unless max attempts reached
 
 if __name__ == "__main__":
     logger.info("Starting streamlit_app.py")

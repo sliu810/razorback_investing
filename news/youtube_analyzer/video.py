@@ -7,11 +7,12 @@ from youtube_api_client import YouTubeAPIClient
 import os
 import json
 from typing import Optional, Tuple, Union, Dict, List
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 logger = logging.getLogger(__name__)
 
 class Video:
-    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
+    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago', max_retries: int = 3):
         self.video_id: str = video_id
         self.url: str = f"https://www.youtube.com/watch?v={video_id}"
         self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
@@ -25,6 +26,7 @@ class Video:
         self.transcript: Optional[Tuple[str, str]] = None
         self._metadata_fetched: bool = False
         self._transcript_fetched: bool = False
+        self.max_retries: int = max_retries
 
     # Core data fetching methods
     def get_video_metadata(self) -> None:
@@ -59,6 +61,11 @@ class Video:
             logger.error(f"Failed to fetch video metadata for {self.video_id}: {str(e)}")
             raise
 
+    @retry(
+        stop=stop_after_attempt(3),  # This will be overridden by instance value
+        wait=wait_exponential(multiplier=1, min=4, max=10),
+        retry=retry_if_exception_type(Exception)
+    )
     def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
         """Fetch and process video transcript"""
         if self.transcript is not None and self._transcript_fetched:
@@ -67,6 +74,9 @@ class Video:
 
         logger.info(f"Attempting to fetch transcript for video {self.video_id}")
         try:
+            # Override retry count with instance value
+            self.get_transcript.retry.stop = stop_after_attempt(self.max_retries)
+            
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
             logger.info(f"Available transcripts: {transcript_list}")
             

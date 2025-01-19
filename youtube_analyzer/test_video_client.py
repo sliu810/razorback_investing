@@ -1,5 +1,5 @@
 import pytest
-from youtube_video_client import YouTubeVideoClient
+from video_client import YouTubeVideoClient
 from llm_processor import LLMConfig, Role, Task
 import os
 from pathlib import Path

@@ -14,7 +14,7 @@ print("Current directory:", os.getcwd())
 print("Files in directory:", os.listdir())
 
 import streamlit as st
-from youtube_video_client import YouTubeVideoClient
+from video_client import YouTubeVideoClient
 from llm_processor import Task, Role, LLMConfig
 from utils import extract_video_id
 from tenacity import retry, stop_after_attempt, wait_exponential

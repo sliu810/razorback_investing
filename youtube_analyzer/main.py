@@ -42,7 +42,7 @@ Note:
     - All commands require appropriate API keys set in environment variables
 """
 
-from youtube_video_client import YouTubeVideoClient
+from video_client import YouTubeVideoClient
 from llm_processor import Task, Role, LLMConfig
 from utils import extract_video_id
 import os

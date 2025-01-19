@@ -36,35 +36,6 @@ class Channel(ABC):
     def fetch_videos(self, start_date: Optional[datetime] = None, end_date: Optional[datetime] = None) -> List[Video]:
         pass
 
-    # def serialize_channel_to_csv(self, root_dir: str) -> Optional[str]:
-    #     if not self.videos:
-    #         self.logger.warning("No videos to serialize.")
-    #         return None
-
-    #     os.makedirs(root_dir, exist_ok=True)
-        
-    #     sanitized_name = sanitize_filename(self.name)
-    #     file_name = self._generate_file_name(sanitized_name)
-    #     file_path = os.path.join(root_dir, file_name)
-
-    #     # Sort videos by publication date (latest to oldest)
-    #     sorted_videos = sorted(self.videos, key=lambda v: v.published_at or datetime.min, reverse=True)
-
-    #     df = pd.DataFrame([video.to_dict() for video in sorted_videos])
-        
-    #     self.logger.info("DataFrame structure:")
-    #     buffer = io.StringIO()
-    #     df.info(buf=buffer)
-    #     self.logger.info(buffer.getvalue())
-        
-    #     self.logger.info("First few rows of the DataFrame:")
-    #     self.logger.info("\n" + df.head().to_string())
-
-    #     df.to_csv(file_path, index=False)
-    #     self.logger.info(f"Serialized {len(sorted_videos)} videos to CSV: {file_path}")
-
-    #     return file_path
-
     def serialize_channel_to_json(self, root_dir: str) -> Optional[str]:
         if not self.videos:
             self.logger.warning("No videos to serialize.")

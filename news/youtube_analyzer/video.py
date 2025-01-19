@@ -65,9 +65,10 @@ class Video:
             logger.debug(f"Returning cached transcript for video {self.video_id}")
             return self.transcript
 
-        logger.debug(f"Fetching transcript from YouTube API for video {self.video_id}")
+        logger.info(f"Attempting to fetch transcript for video {self.video_id}")
         try:
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
+            logger.info(f"Available transcripts: {transcript_list}")
             
             try:
                 transcript = transcript_list.find_transcript([self.transcript_language])
@@ -86,8 +87,8 @@ class Video:
             logger.debug(f"Successfully fetched and cached transcript for video {self.video_id}")
             return self.transcript
 
-        except (TranscriptsDisabled, NoTranscriptFound):
-            logger.warning(f"No transcript available for video ID: {self.video_id}")
+        except (TranscriptsDisabled, NoTranscriptFound) as e:
+            logger.error(f"Transcript error for video {self.video_id}: {str(e)}")
             self.transcript = (None, None)
             self._transcript_fetched = False
             return None, None

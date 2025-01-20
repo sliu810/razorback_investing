@@ -1,6 +1,6 @@
 import pytest
-from video_client import YouTubeVideoClient
-from llm_processor import LLMConfig, Role, Task
+from ..video_client import YouTubeVideoClient
+from ..llm_processor import LLMConfig, Role, Task
 import os
 from pathlib import Path
 import logging
@@ -240,18 +240,14 @@ def test_chat_functionality(claude_only_client, test_video_id):
 def test_error_handling(youtube_client):
     """Test error handling"""
     # Test with invalid processor name
-    results = youtube_client.analyze_video(
-        processor_names=["invalid_processor"],
-        task=Task.summarize()
-    )
-    assert len(results) == 0
+    with pytest.raises(ValueError) as exc_info:
+        results = youtube_client.analyze_video(
+            processor_names=["invalid_processor"],
+            task=Task.summarize()
+        )
     
-    # Test chat with invalid processor
-    response = youtube_client.chat(
-        processor_name="invalid_processor",
-        question="test"
-    )
-    assert response is None
+    # Verify the error message
+    assert "Processors not found: invalid_processor" in str(exc_info.value)
 
 def test_processor_initialization(test_video_id):
     """Test adding processors to YouTubeVideoClient"""

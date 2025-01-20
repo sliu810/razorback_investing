@@ -2,8 +2,8 @@ import logging
 from datetime import datetime
 import pytz
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
-from utils import iso_duration_to_minutes, sanitize_filename
-from youtube_api_client import YouTubeAPIClient
+from .utils import iso_duration_to_minutes, sanitize_filename
+from .youtube_api_client import YouTubeAPIClient
 import os
 import json
 from typing import Optional, Tuple, Union, Dict, List

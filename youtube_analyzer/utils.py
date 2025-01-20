@@ -3,7 +3,7 @@ from datetime import datetime, date, timedelta
 import re
 import logging
 from isodate import parse_duration
-from typing import Tuple
+from typing import Tuple, Optional, Dict
 
 def iso_duration_to_minutes(duration: str) -> int:
     """Convert ISO 8601 duration to minutes
@@ -151,3 +151,58 @@ def extract_video_id(video_input: str) -> str:
     elif "youtu.be/" in video_input:
         return video_input.split("youtu.be/")[-1].split("?")[0]
     return video_input  # Assume it's already a video ID
+
+class DateFilter:
+    """Date filtering utilities for YouTube API searches
+    
+    Handles timezone conversions and formatting dates for YouTube API.
+    All methods return dates in RFC 3339 format (e.g., '2024-01-01T00:00:00Z')
+    """
+    
+    def __init__(self, timezone: str = 'America/Chicago'):
+        """Initialize DateFilter with specified timezone"""
+        self.timezone = pytz.timezone(timezone)
+    
+    def _to_youtube_date(self, dt: datetime) -> str:
+        """Convert datetime to YouTube API compatible format"""
+        if dt.tzinfo is None:
+            dt = self.timezone.localize(dt)
+        return dt.astimezone(pytz.UTC).isoformat().replace('+00:00', 'Z')
+    
+    def today(self) -> Dict[str, str]:
+        """Get videos published today (00:00 to now) in configured timezone"""
+        now = datetime.now(pytz.UTC).astimezone(self.timezone)
+        start_of_day = now.replace(hour=0, minute=0, second=0, microsecond=0)
+        
+        return {
+            'publishedAfter': self._to_youtube_date(start_of_day),
+            'publishedBefore': self._to_youtube_date(now)
+        }
+    
+    def from_days_ago(self, days: int) -> Dict[str, str]:
+        """Get videos published in the last N days"""
+        now = datetime.now(pytz.UTC).astimezone(self.timezone)
+        published_after = now - timedelta(days=days)
+        
+        return {
+            'publishedAfter': self._to_youtube_date(published_after)
+        }
+    
+    def from_dates(self, after: Optional[datetime] = None, before: Optional[datetime] = None) -> Dict[str, str]:
+        """Get videos between specific dates
+        
+        Args:
+            after: Start date (inclusive)
+            before: End date (inclusive)
+            
+        Returns:
+            Dict with 'publishedAfter' and/or 'publishedBefore' in YouTube API format
+        """
+        params = {}
+        
+        if after:
+            params['publishedAfter'] = self._to_youtube_date(after)
+        if before:
+            params['publishedBefore'] = self._to_youtube_date(before)
+            
+        return params

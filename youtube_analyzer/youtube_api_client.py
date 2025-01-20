@@ -15,6 +15,36 @@ class YouTubeAPIClient:
         # Create a logger for this class
         self.logger = logging.getLogger(self.__class__.__name__)
 
+    def get_channel_id(self, username: str) -> str:
+        """
+        Retrieve the YouTube channel ID for a given username/handle.
+        
+        Args:
+            username: Channel username/handle (with or without @)
+        
+        Returns:
+            str: YouTube channel ID
+            
+        Raises:
+            ValueError: If channel not found or API error occurs
+        """
+        # Remove @ if present
+        username = username.strip('@')
+        
+        request = self.youtube.channels().list(
+            part="id",
+            forHandle=username
+        )
+        
+        try:
+            response = self.execute_api_request(request)
+            if "items" in response and len(response["items"]) > 0:
+                return response["items"][0]["id"]
+            else:
+                raise ValueError(f"No channel found for @{username}")
+        except Exception as e:
+            raise ValueError(f"Error fetching channel ID: {str(e)}")
+
     def execute_api_request(self, request):
         try:
             return request.execute()

@@ -1,8 +1,8 @@
 from typing import Dict, List, Optional, Union
 import os
 from datetime import datetime
-from llm_processor import LLMProcessor, LLMConfig, Role, Task
-from video import Video
+from .llm_processor import LLMProcessor, LLMConfig, Role, Task
+from .video import Video
 import logging
 from googleapiclient.discovery import build
 import re

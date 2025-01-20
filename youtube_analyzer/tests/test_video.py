@@ -1,7 +1,9 @@
 import pytest
 import os
-from video import Video
-from youtube_api_client import YouTubeAPIClient
+from datetime import datetime
+import pytz
+from ..video import Video
+from ..youtube_api_client import YouTubeAPIClient
 import json
 
 def test_video_creation():

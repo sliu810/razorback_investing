@@ -8,15 +8,18 @@ warnings.filterwarnings('ignore', message='file_cache is only supported with oau
 import os
 import logging
 import sys
-
-# Debug info just before the problematic import
-print("Current directory:", os.getcwd())
-print("Files in directory:", os.listdir())
-
 import streamlit as st
-from video_client import YouTubeVideoClient
-from llm_processor import Task, Role, LLMConfig
-from utils import extract_video_id
+from pathlib import Path
+
+# Add the project root to Python path
+project_root = str(Path(__file__).parent.parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+# Use absolute imports
+from youtube_analyzer.video_client import YouTubeVideoClient
+from youtube_analyzer.llm_processor import Task, Role, LLMConfig
+from youtube_analyzer.utils import extract_video_id
 from tenacity import retry, stop_after_attempt, wait_exponential
 from youtube_transcript_api import YouTubeTranscriptApi
 

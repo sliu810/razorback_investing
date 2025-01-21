@@ -12,14 +12,14 @@ import streamlit as st
 from pathlib import Path
 
 # Add the project root to Python path
-project_root = str(Path(__file__).parent.parent.parent)
+project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Use absolute imports
-from youtube_analyzer.video_client import YouTubeVideoClient
-from youtube_analyzer.llm_processor import Task, Role, LLMConfig
-from youtube_analyzer.utils import extract_video_id
+from libs.video_client import YouTubeVideoClient
+from libs.llm_processor import Task, Role, LLMConfig
+from libs.utils import extract_video_id
 from tenacity import retry, stop_after_attempt, wait_exponential
 from youtube_transcript_api import YouTubeTranscriptApi
 

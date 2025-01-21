@@ -41,16 +41,15 @@ Note:
     - Chat mode can be combined with initial analysis
     - All commands require appropriate API keys set in environment variables
 """
-from utils import extract_video_id
 import os
 import logging
 import sys
 import argparse
 from typing import List, Optional, Dict
 
-from .video_client import YouTubeVideoClient
-from .utils import extract_video_id
-
+from ..libs.video_client import YouTubeVideoClient
+from ..libs.utils import extract_video_id
+from ..libs.llm_processor import LLMConfig, Role, Task
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,

@@ -1,7 +1,7 @@
 import pytest
 from datetime import datetime, timedelta
 import pytz
-from ..utils import iso_duration_to_minutes, get_formatted_date_today, make_clickable, DateFilter
+from ..libs.utils import iso_duration_to_minutes, get_formatted_date_today, make_clickable, DateFilter
 
 def test_iso_duration_to_minutes():
     """Test conversion of ISO duration to minutes"""

@@ -1,6 +1,6 @@
 import pytest
-from ..video_client import YouTubeVideoClient
-from ..llm_processor import LLMConfig, Role, Task
+from ..libs.video_client import YouTubeVideoClient
+from ..libs.llm_processor import LLMConfig, Role, Task
 import os
 from pathlib import Path
 import logging

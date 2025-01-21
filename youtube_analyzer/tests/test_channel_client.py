@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import pytz
 
 import os
-from ..channel_client import ChannelClientFactory
-from ..utils import DateFilter
+from youtube_analyzer.libs.channel_client import ChannelClientFactory
+from youtube_analyzer.libs.utils import DateFilter
 
 @pytest.fixture
 def youtube_channel():

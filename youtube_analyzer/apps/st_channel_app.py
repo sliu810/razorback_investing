@@ -18,9 +18,9 @@ if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Use absolute imports
-from youtube_analyzer.channel_client import ChannelClientFactory
-from youtube_analyzer.llm_processor import Task, Role, LLMConfig
-from youtube_analyzer.utils import DateFilter
+from ..libs.channel_client import ChannelClientFactory
+from ..libs.llm_processor import Task, Role, LLMConfig
+from ..libs.utils import DateFilter
 
 # Configure logging
 logging.basicConfig(

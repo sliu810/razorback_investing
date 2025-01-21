@@ -9,8 +9,8 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from typing import Optional
 
-from .channel_client import ChannelClientFactory
-from .utils import DateFilter
+from ..libs.channel_client import ChannelClientFactory
+from ..libs.utils import DateFilter
 
 # Configure logging
 logging.basicConfig(

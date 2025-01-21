@@ -4,8 +4,7 @@ from datetime import datetime
 from .llm_processor import LLMProcessor, LLMConfig, Role, Task
 from .video import Video
 import logging
-from googleapiclient.discovery import build
-import re
+from .youtube_api_client import YouTubeAPIClient
 from dataclasses import dataclass
 
 logger = logging.getLogger(__name__)
@@ -85,7 +84,7 @@ class YouTubeVideoClient:
             video_id: YouTube video ID to analyze
             youtube_api_key: YouTube Data API key
         """
-        self._youtube = build('youtube', 'v3', developerKey=youtube_api_key)
+        self._api_client = YouTubeAPIClient(youtube_api_key)
         self._processors: Dict[str, LLMProcessor] = {}
         self.analysis_results: List[AnalysisResult] = []
         self._video: Optional[Video] = None
@@ -99,11 +98,11 @@ class YouTubeVideoClient:
             video_id: YouTube video ID
         """
         try:
-            self._video = Video(video_id)
+            self._video = Video(video_id, self._api_client)
             self._video.get_video_metadata_and_transcript()
             logger.info(f"Initialized video: {video_id}")
         except Exception as e:
-            logger.error(f"Failed to initialize video {video_id}: {e}")
+            logger.error(f"Failed to initialize video: {e}")
             raise
 
     def add_processor(self, name: str, config: LLMConfig) -> None:

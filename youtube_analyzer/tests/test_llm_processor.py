@@ -1,5 +1,5 @@
 import pytest
-from ..llm_processor import LLMProcessor, LLMConfig, Role, Task
+from ..libs.llm_processor import LLMProcessor, LLMConfig, Role, Task
 import os
 from pathlib import Path
 import logging

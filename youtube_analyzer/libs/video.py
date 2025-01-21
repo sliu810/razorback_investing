@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 import pytz
+import re
 from youtube_transcript_api import YouTubeTranscriptApi, TranscriptsDisabled, NoTranscriptFound
 from .utils import iso_duration_to_minutes, sanitize_filename
 from .youtube_api_client import YouTubeAPIClient
@@ -16,7 +17,7 @@ class Video:
         self.video_id: str = video_id
         self.url: str = f"https://www.youtube.com/watch?v={video_id}"
         self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
-        self.transcript_language: str = transcript_language
+        self._transcript_language = str(transcript_language)  # Store as string in private variable
         self.timezone = pytz.timezone(timezone)
         self.title: Optional[str] = None
         self.published_at: Optional[datetime] = None
@@ -27,6 +28,18 @@ class Video:
         self._metadata_fetched: bool = False
         self._transcript_fetched: bool = False
         self.max_retries: int = max_retries
+
+    @property
+    def transcript_language(self) -> str:
+        """Get the transcript language code."""
+        if self._transcript_language == 'en':
+            return 'en'
+        return str(self._transcript_language)
+
+    @transcript_language.setter
+    def transcript_language(self, value: str):
+        """Set the transcript language code, ensuring it's a string."""
+        self._transcript_language = str(value)
 
     # Core data fetching methods
     def get_video_metadata(self) -> None:
@@ -78,17 +91,25 @@ class Video:
             self.get_transcript.retry.stop = stop_after_attempt(self.max_retries)
             
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
-            logger.info(f"Available transcripts: {transcript_list}")
+            # logger.info(f"Available transcripts: {transcript_list}")
             
-            try:
-                transcript = transcript_list.find_transcript([self.transcript_language])
-            except NoTranscriptFound:
-                if self.transcript_language != 'en':
-                    logger.warning(f"{self.transcript_language.upper()} transcript not found for video ID: {self.video_id}. Falling back to English.")
-                    transcript = transcript_list.find_transcript(['en'])
-                else:
-                    raise
-
+            # find_transcript will:
+            # 1. First try to find manually created transcripts in the order specified:
+            #    - English (en)
+            #    - Simplified Chinese (zh-Hans)
+            #    - Chinese (zh)
+            # 2. If no manual transcripts found, will then try auto-generated transcripts
+            #    in the same language order
+            # 3. Raises NoTranscriptFound if neither manual nor auto-generated transcripts
+            #    are available in any of the specified languages
+            transcript = transcript_list.find_transcript(['en','zh-Hans','zh'])
+            
+            # Log transcript details
+            logger.info(f"""Found transcript:
+            - Language: {transcript.language} ({transcript.language_code})
+            - Is Generated: {transcript.is_generated}
+            - Video ID: {transcript.video_id}""")
+            
             full_transcript = ' '.join([entry['text'] for entry in transcript.fetch()])
             transformed_transcript = self._transform_transcript_for_readability(full_transcript, transcript.language_code)
             
@@ -103,7 +124,7 @@ class Video:
             self._transcript_fetched = False
             return None, None
         except Exception as e:
-            logger.error(f"An error occurred while fetching transcript for {self.video_id}: {str(e)}")
+            logger.exception(f"An unexpected error occurred while fetching transcript for {self.video_id}: {str(e)}")
             self.transcript = (None, None)
             self._transcript_fetched = False
             return None, None

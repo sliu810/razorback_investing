@@ -6,6 +6,8 @@ from .video import Video
 import logging
 from .youtube_api_client import YouTubeAPIClient
 from dataclasses import dataclass
+import re
+
 
 logger = logging.getLogger(__name__)
 

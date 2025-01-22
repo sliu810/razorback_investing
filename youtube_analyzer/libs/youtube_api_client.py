@@ -70,7 +70,9 @@ class YouTubeAPIClient:
         
         self._tried_keys.add(key)
         try:
-            logger.info(f"Testing API key...")
+            # Only show first 4 and last 4 characters of the key
+            masked_key = f"{key[:4]}...{key[-4:]}" if key else "None"
+            logger.info(f"Testing API key: {masked_key}")
             self._youtube = build('youtube', 'v3', developerKey=key)
             test_request = self._youtube.search().list(
                 part="id",  # Minimum required field

@@ -114,17 +114,38 @@ def main():
     logger.info("Starting main()")
     st.set_page_config(layout="wide")
     
+    # Get URL parameters
+    query_params = st.query_params
+    
     # Initialize session state variables
     if 'client' not in st.session_state:
         logger.info("Initializing session state")
         st.session_state.client = None
-        st.session_state.selected_models = list(AVAILABLE_MODELS.keys())  # Default all selected
+        st.session_state.selected_models = list(AVAILABLE_MODELS.keys())
         st.session_state.selected_role = Role.research_assistant()
         st.session_state.selected_task = Task.summarize()
         st.session_state.messages = []
         st.session_state.current_video_id = None
         st.session_state.current_results = None
         st.session_state.video_url = None
+        
+        # Set initial values from URL parameters if they exist
+        if 'video_url' in query_params:
+            st.session_state.video_url = query_params['video_url']
+        if 'models' in query_params:
+            st.session_state.selected_models = query_params['models'].split(',')
+        if 'role' in query_params:
+            role_name = query_params['role'].lower()
+            if role_name == 'research_assistant':
+                st.session_state.selected_role = Role.research_assistant()
+            elif role_name == 'financial_analyst':
+                st.session_state.selected_role = Role.financial_analyst()
+        if 'task' in query_params:
+            task_name = query_params['task'].lower()
+            if task_name == 'summarize':
+                st.session_state.selected_task = Task.summarize()
+            elif task_name == 'market_analysis':
+                st.session_state.selected_task = Task.market_analysis()
 
     # Initialize client if we have a video URL
     if st.session_state.video_url:
@@ -133,8 +154,13 @@ def main():
                         st.session_state.current_video_id != video_id):
             logger.info("Initializing YouTubeVideoClient")
             st.session_state.client = initialize_client(video_id)
-            st.session_state.current_video_id = video_id  # Set this right after client initialization
+            st.session_state.current_video_id = video_id
             logger.info("Client initialization complete")
+            
+            # Auto-analyze if specified in URL parameters
+            if 'auto_analyze' in query_params and query_params['auto_analyze'] == 'true':
+                logger.info("Auto-analyzing video...")
+                analyze_video()
 
     # Sidebar
     with st.sidebar:

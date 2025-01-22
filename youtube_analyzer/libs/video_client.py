@@ -375,3 +375,8 @@ class YouTubeVideoClient:
     def published_at(self) -> datetime:
         """Get video publication date"""
         return self._video.published_at
+
+    @property
+    def video_id(self) -> str:
+        """Get video ID"""
+        return self._video.video_id

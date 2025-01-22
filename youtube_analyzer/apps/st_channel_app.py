@@ -13,14 +13,15 @@ from pathlib import Path
 from datetime import datetime, timedelta
 
 # Add the project root to Python path
-project_root = str(Path(__file__).parent.parent.parent)
+project_root = str(Path(__file__).parent.parent)
 if project_root not in sys.path:
     sys.path.append(project_root)
 
 # Use absolute imports
-from ..libs.channel_client import ChannelClientFactory
-from ..libs.llm_processor import Task, Role, LLMConfig
-from ..libs.utils import DateFilter
+from libs.channel_client import ChannelClientFactory
+from libs.utils import DateFilter
+from libs.llm_processor import Task, Role, LLMConfig
+from libs.youtube_api_client import YouTubeAPIClient
 
 # Configure logging
 logging.basicConfig(
@@ -44,36 +45,30 @@ AVAILABLE_MODELS = {
     }
 }
 
-def initialize_client(channel_id: str) -> ChannelClientFactory:
-    """Initialize client with default processors"""
-    client = ChannelClientFactory(
+# Preset channels with handles
+PRESET_CHANNELS = {
+    "Lex Fridman": "@lexfridman",
+    "Joe Rogan": "@joerogan",
+    "CNBC": "@CNBCtelevision"
+}
+
+def initialize_client(channel_name: str) -> ChannelClientFactory:
+    """Initialize client with channel name
+    
+    Args:
+        channel_name: Channel handle (e.g., @lexfridman)
+    """
+    # First get the channel ID using YouTubeAPIClient
+    api_client = YouTubeAPIClient(api_key=os.getenv("YOUTUBE_API_KEY"))
+    channel_id = api_client.get_channel_id(channel_name)
+    
+    # Then create channel client with the ID
+    return ChannelClientFactory.create_channel(
+        channel_type="youtube",
         channel_id=channel_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
+        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
+        timezone='America/Chicago'
     )
-    
-    # Add Claude processor
-    try:
-        claude_config = LLMConfig(
-            provider="anthropic",
-            model_name="claude-3-5-sonnet-20241022",
-            api_key=os.getenv("ANTHROPIC_API_KEY")
-        )
-        client.add_processor("claude_35_sonnet", claude_config)
-    except Exception as e:
-        logger.warning(f"Could not add Claude processor: {e}")
-    
-    # Add GPT processor
-    try:
-        gpt_config = LLMConfig(
-            provider="openai",
-            model_name="gpt-4o",
-            api_key=os.getenv("OPENAI_API_KEY")
-        )
-        client.add_processor("gpt_4o", gpt_config)
-    except Exception as e:
-        logger.warning(f"Could not add GPT-4 processor: {e}")
-    
-    return client
 
 def main():
     logger.info("Starting main()")
@@ -83,47 +78,56 @@ def main():
     if 'client' not in st.session_state:
         logger.info("Initializing session state")
         st.session_state.client = None
+        st.session_state.channel_handle = None
+        st.session_state.videos = None
         st.session_state.selected_models = list(AVAILABLE_MODELS.keys())  # Default all selected
         st.session_state.selected_role = Role.research_assistant()
         st.session_state.selected_task = Task.summarize()
         st.session_state.current_results = None
         st.session_state.channel_id = None
-        st.session_state.date_filter = DateFilter.all()
+        st.session_state.date_filter = DateFilter()  # Initialize with default constructor
 
     # Sidebar
     with st.sidebar:
-        st.title("YouTube Channel Analyzer")
-        st.session_state.channel_id = st.text_input(
-            "Enter YouTube Channel ID",
-            value=st.session_state.channel_id if 'channel_id' in st.session_state else "",
-            placeholder="UC...",
-            key="channel_id_input"
+        st.title("YouTube Channel Videos")
+        
+        # Channel selection
+        st.subheader("Select Channel")
+        channel_option = st.radio(
+            "Choose channel source:",
+            ["Preset Channels", "Custom Channel"],
+            label_visibility="collapsed"
         )
         
-        # Date filter selection
-        st.subheader("Date Filter")
-        date_options = {
-            "All Time": DateFilter.all(),
-            "Last 30 Days": DateFilter.last_30_days(),
-            "Today": DateFilter.today(),
-            "Custom Range": None
-        }
-        selected_date_option = st.selectbox(
-            "Select Date Range",
-            options=list(date_options.keys()),
-            index=0,
-            key="date_filter_selector"
-        )
-        
-        if selected_date_option == "Custom Range":
-            col1, col2 = st.columns(2)
-            with col1:
-                start_date = st.date_input("Start Date", datetime.now() - timedelta(days=30))
-            with col2:
-                end_date = st.date_input("End Date", datetime.now())
-            st.session_state.date_filter = DateFilter.custom_range(start_date, end_date)
+        if channel_option == "Preset Channels":
+            channel_name = st.selectbox(
+                "Select a channel:",
+                options=list(PRESET_CHANNELS.keys())
+            )
+            channel_handle = PRESET_CHANNELS[channel_name]
         else:
-            st.session_state.date_filter = date_options[selected_date_option]
+            channel_handle = st.text_input(
+                "Enter channel handle (e.g., @lexfridman):",
+                placeholder="@channel"
+            )
+        
+        # Date range selection
+        st.subheader("Select Date Range")
+        date_option = st.radio(
+            "Choose date range:",
+            ["Today", "Last N Days"]
+        )
+        
+        if date_option == "Last N Days":
+            days = st.number_input(
+                "Number of days to look back:",
+                min_value=1,
+                max_value=365,
+                value=30
+            )
+        
+        # Show channel button
+        show_channel = st.button("Show Channel Videos", type="primary")
         
         # Model selection
         st.subheader("Models")
@@ -188,43 +192,72 @@ def main():
             st.write("Date Filter:", st.session_state.date_filter)
 
     # Main panel
-    if st.session_state.channel_id:
-        logger.info(f"Processing channel ID: {st.session_state.channel_id}")
-        
+    if show_channel and channel_handle:
         try:
-            # Initialize or reinitialize client if needed
-            if (st.session_state.client is None or 
-                st.session_state.client.channel_id != st.session_state.channel_id):
-                logger.info("Initializing ChannelClientFactory")
-                st.session_state.client = initialize_client(st.session_state.channel_id)
-                logger.info("Client initialization complete")
-
-            # Show channel title
-            if st.session_state.client:
-                st.header(st.session_state.client.channel_title)
-                st.markdown(f"[View Channel](https://www.youtube.com/channel/{st.session_state.channel_id})")
-
-            if analyze_button:
-                logger.info("Analyze button clicked - starting analysis")
-                with st.spinner("Analyzing channel..."):
-                    results = st.session_state.client.analyze_channel(
-                        processor_names=st.session_state.selected_models,
-                        task=st.session_state.selected_task,
-                        role=st.session_state.selected_role,
-                        date_filter=st.session_state.date_filter
-                    )
-                    st.session_state.current_results = results
-                logger.info("Analysis complete")
-
-            if st.session_state.current_results is not None:
-                for result in st.session_state.current_results:
-                    with st.expander(f"Analysis by {result.model}", expanded=True):
-                        st.markdown(result.html, unsafe_allow_html=True)
-
+            # Initialize client
+            client = initialize_client(channel_handle)
+            st.header(f"Videos from {client.channel_metadata['title']}")
+            
+            # Set up date filter
+            date_filter = DateFilter()
+            if date_option == "Today":
+                params = date_filter.today()
+            else:
+                params = date_filter.from_days_ago(days)
+            
+            # Get videos
+            video_ids = client.update_video_ids(
+                published_after=params.get('publishedAfter'),
+                published_before=params.get('publishedBefore')
+            )
+            
+            # Get video clients for each ID
+            videos = [client.create_or_get_video_client(video_id) for video_id in video_ids]
+            
+            # Display video information in a cleaner format
+            for video in videos:
+                with st.container():
+                    # Format date to show only YYYY-MM-DD
+                    published_date = video.published_at.strftime('%Y-%m-%d')
+                    
+                    # Create columns for link and button
+                    col1, col2 = st.columns([6, 1])
+                    
+                    # Display clickable title and date in first column
+                    with col1:
+                        st.markdown(f"[**{video.title}**](https://youtube.com/watch?v={video.video_id}) ({published_date})")
+                    
+                    # Add analyze link in second column
+                    with col2:
+                        video_url = f"https://youtube.com/watch?v={video.video_id}"
+                        
+                        # Get current selected models, role, and task from session state
+                        models_param = ",".join(st.session_state.selected_models)
+                        role_param = st.session_state.selected_role.name
+                        task_param = st.session_state.selected_task.name
+                        
+                        # Create URL with all parameters
+                        analyze_url = (
+                            f"http://localhost:8502/?"
+                            f"video_url={video_url}&"
+                            f"models={models_param}&"
+                            f"role={role_param}&"
+                            f"task={task_param}&"
+                            f"auto_analyze=true"
+                        )
+                        
+                        # Debug: Show the URL being generated
+                        with st.expander("Debug URL", expanded=False):
+                            st.write(analyze_url)
+                        
+                        # Remove the $ that was causing issues
+                        st.markdown(f"[Analyze]({analyze_url})")
+                    
+                    st.divider()  # Add a visual separator between videos
+        
         except Exception as e:
-            st.error(f"Error analyzing channel: {str(e)}")
-            logger.error(f"Error analyzing channel: {e}", exc_info=True)
-            return
+            st.error(f"Error loading channel: {str(e)}")
+            logger.error(f"Error loading channel: {e}", exc_info=True)
 
 if __name__ == "__main__":
     logger.info("Starting channel_analyzer_app.py")

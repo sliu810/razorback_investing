@@ -3,8 +3,8 @@ from datetime import datetime, timedelta
 import pytz
 
 import os
-from youtube_analyzer.libs.channel_client import ChannelClientFactory
-from youtube_analyzer.libs.utils import DateFilter
+from ..libs.channel_client import ChannelClientFactory
+from ..libs.utils import DateFilter
 
 @pytest.fixture
 def youtube_channel():
@@ -22,14 +22,21 @@ def date_filter():
     """Fixture providing DateFilter with Chicago timezone"""
     return DateFilter(timezone='America/Chicago')
 
-def test_youtube_channel_30_days(youtube_channel, date_filter):
-    """Test fetching videos from last 30 days"""
-    params = date_filter.from_days_ago(30)
+@pytest.mark.parametrize("days", [1, 7, 30, 90])  # Test with different day ranges
+def test_youtube_channel_last_n_days(youtube_channel, date_filter, days):
+    """Test fetching videos from last N days
+    
+    Args:
+        youtube_channel: YouTube channel fixture
+        date_filter: Date filter fixture
+        days: Number of days to look back
+    """
+    params = date_filter.from_days_ago(days)
     new_videos = youtube_channel.update_video_ids(
         published_after=params['publishedAfter']
     )
     
-    print(f"\nFound {len(new_videos)} videos in last 30 days")
+    print(f"\nFound {len(new_videos)} videos in last {days} days")
     _print_video_details(youtube_channel, new_videos)
 
 def test_youtube_channel_today(youtube_channel, date_filter):

@@ -13,11 +13,17 @@ from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_excep
 logger = logging.getLogger(__name__)
 
 class Video:
-    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago', max_retries: int = 3):
+    # Retry configuration constants
+    DEFAULT_MAX_RETRIES = 3
+    RETRY_MULTIPLIER = 1  # Base delay multiplier in seconds
+    RETRY_MIN_WAIT = 4    # Minimum wait time between retries in seconds
+    RETRY_MAX_WAIT = 10   # Maximum wait time between retries in seconds
+    
+    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
         self.video_id: str = video_id
         self.url: str = f"https://www.youtube.com/watch?v={video_id}"
         self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
-        self._transcript_language = str(transcript_language)  # Store as string in private variable
+        self._transcript_language = str(transcript_language)
         self.timezone = pytz.timezone(timezone)
         self.title: Optional[str] = None
         self.published_at: Optional[datetime] = None
@@ -27,7 +33,6 @@ class Video:
         self.transcript: Optional[Tuple[str, str]] = None
         self._metadata_fetched: bool = False
         self._transcript_fetched: bool = False
-        self.max_retries: int = max_retries
 
     @property
     def transcript_language(self) -> str:
@@ -75,8 +80,12 @@ class Video:
             raise
 
     @retry(
-        stop=stop_after_attempt(3),  # This will be overridden by instance value
-        wait=wait_exponential(multiplier=1, min=4, max=10),
+        stop=stop_after_attempt(DEFAULT_MAX_RETRIES),
+        wait=wait_exponential(
+            multiplier=RETRY_MULTIPLIER,
+            min=RETRY_MIN_WAIT,
+            max=RETRY_MAX_WAIT
+        ),
         retry=retry_if_exception_type(Exception)
     )
     def get_transcript(self) -> Tuple[Optional[str], Optional[str]]:
@@ -87,8 +96,8 @@ class Video:
 
         logger.info(f"Attempting to fetch transcript for video {self.video_id}")
         try:
-            # Override retry count with instance value
-            self.get_transcript.retry.stop = stop_after_attempt(self.max_retries)
+            # Override retry count with class constant
+            self.get_transcript.retry.stop = stop_after_attempt(self.DEFAULT_MAX_RETRIES)
             
             transcript_list = YouTubeTranscriptApi.list_transcripts(self.video_id)
             # logger.info(f"Available transcripts: {transcript_list}")

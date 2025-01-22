@@ -1,11 +1,11 @@
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import pytz
-from .video_client import YouTubeVideoClient
 from googleapiclient.discovery import build
 import logging
 from .utils import DateFilter
 from .llm_processor import LLMConfig, Task
+from .video_client import YouTubeVideoClient
 
 logger = logging.getLogger(__name__)
 
@@ -101,9 +101,28 @@ class BaseChannelClient:
         self.last_update = datetime.now(pytz.UTC)
         return new_video_ids
 
-    def get_video_client(self, video_id: str) -> YouTubeVideoClient:
-        """Get or create video client"""
-        raise NotImplementedError
+    def create_or_get_video_client(self, video_id: str) -> YouTubeVideoClient:
+        """Get existing or create new video client for specific video
+        
+        Args:
+            video_id: YouTube video ID
+            
+        Returns:
+            YouTubeVideoClient: Configured video client with channel's API key and processors
+        """
+        if video_id not in self._video_clients:
+            client = YouTubeVideoClient(
+                video_id=video_id,
+                youtube_api_key=self.youtube_api_key
+            )
+            
+            # Add any channel-level processors
+            for name, config in self._processors.items():
+                client.add_processor(name, config)
+                
+            self._video_clients[video_id] = client
+            
+        return self._video_clients[video_id]
 
     def analyze_videos(self, 
                       video_ids: Optional[List[str]] = None,
@@ -119,7 +138,7 @@ class BaseChannelClient:
         results = {}
         for video_id in video_ids:
             try:
-                client = self.get_video_client(video_id)
+                client = self.create_or_get_video_client(video_id)
                 analysis = client.analyze_video(
                     processor_names=processor_names,
                     task=task
@@ -215,8 +234,8 @@ class YouTubeChannelClient(BaseChannelClient):
                 'view_count': 0
             }
 
-    def get_video_client(self, video_id: str) -> YouTubeVideoClient:
-        """Get or create video client for specific video"""
+    def create_or_get_video_client(self, video_id: str) -> YouTubeVideoClient:
+        """Get existing or create new video client for specific video"""
         if video_id not in self._video_clients:
             client = YouTubeVideoClient(
                 video_id=video_id,
@@ -240,8 +259,8 @@ class VirtualChannelClient(BaseChannelClient):
         self.youtube_api_key = youtube_api_key
         self.video_ids = video_ids.copy()
 
-    def get_video_client(self, video_id: str) -> YouTubeVideoClient:
-        """Get or create video client for specific video"""
+    def create_or_get_video_client(self, video_id: str) -> YouTubeVideoClient:
+        """Get existing or create new video client for specific video"""
         if video_id not in self._video_clients:
             client = YouTubeVideoClient(
                 video_id=video_id,

@@ -6,6 +6,7 @@ import logging
 from .utils import DateFilter
 from .llm_processor import LLMConfig, Task
 from .video_client import YouTubeVideoClient
+from .youtube_api_client import YouTubeAPIClient
 
 logger = logging.getLogger(__name__)
 
@@ -15,7 +16,7 @@ class BaseChannelClient:
     This is the base class for both YouTube channels and virtual collections.
     """
     
-    def __init__(self, name: str, timezone: str = 'America/Chicago'):
+    def __init__(self, name: str, youtube_api_key: str = None, timezone: str = 'America/Chicago'):
         self.name = name
         self.timezone = pytz.timezone(timezone)
         
@@ -32,6 +33,9 @@ class BaseChannelClient:
         
         # Last update tracking
         self.last_update: Optional[datetime] = None
+        
+        # Initialize YouTube API client with optional key
+        self.youtube_api_client = YouTubeAPIClient(api_key=youtube_api_key)
 
     def update_video_ids(
         self, 
@@ -72,7 +76,7 @@ class BaseChannelClient:
         
         while True:
             try:
-                request = self._youtube.search().list(
+                request = self.youtube_api_client.create_search_request(
                     part="id",
                     channelId=self.channel_id,
                     type="video",
@@ -82,7 +86,7 @@ class BaseChannelClient:
                     **search_params
                 )
                 
-                response = request.execute()
+                response = self.youtube_api_client.execute_api_request(request)
                 
                 for item in response.get('items', []):
                     video_id = item['id']['videoId']
@@ -191,17 +195,16 @@ class YouTubeChannelClient(BaseChannelClient):
         super().__init__(name=channel_id, timezone=timezone)
         self.channel_id = channel_id
         self.youtube_api_key = youtube_api_key
-        self._youtube = build('youtube', 'v3', developerKey=youtube_api_key)
         self._fetch_channel_metadata()
 
     def _fetch_channel_metadata(self) -> None:
         """Fetch basic channel information"""
         try:
-            request = self._youtube.channels().list(
+            request = self.youtube_api_client.create_channels_request(
                 part="snippet,statistics",
                 id=self.channel_id
             )
-            response = request.execute()
+            response = self.youtube_api_client.execute_api_request(request)
             
             if not response.get('items'):
                 logger.error(f"No channel found for ID: {self.channel_id}")

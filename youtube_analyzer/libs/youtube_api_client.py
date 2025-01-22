@@ -24,19 +24,68 @@ class YouTubeRateLimitError(Exception):
     pass
 
 class YouTubeAPIClient:
-    """Client for handling all YouTube API interactions"""
-    
+    _instance = None
+    _initialized = False
+
+    def __new__(cls, *args, **kwargs):
+        if cls._instance is None:
+            cls._instance = super().__new__(cls)
+        return cls._instance
+
     def __init__(self, api_key: Optional[str] = None):
-        """Initialize YouTube API client
+        """Initialize YouTube API client with multiple API keys"""
+        # Skip if already initialized
+        if self._initialized:
+            return
+            
+        self._primary_key = api_key or os.getenv('YOUTUBE_API_KEY')
+        self._secondary_key = os.getenv('YOUTUBE_API_KEY_2')
+        self._current_key = None
+        self._tried_keys = set()  # Track which keys we've tried
         
-        Args:
-            api_key: YouTube API key. If not provided, will try to get from YOUTUBE_API_KEY env var
-        """
-        self._api_key = api_key or os.getenv('YOUTUBE_API_KEY')
-        if not self._api_key:
-            raise ValueError("No API key found. Provide an API key or set the YOUTUBE_API_KEY environment variable")
+        if not self._primary_key:
+            raise ValueError("No primary API key found. Provide an API key or set the YOUTUBE_API_KEY environment variable")
         
-        self._youtube = build('youtube', 'v3', developerKey=self._api_key)
+        # Try primary key first
+        if self._try_key(self._primary_key):
+            self._initialized = True
+            logger.info("Using primary key")
+            return
+            
+        # If primary key fails and we have a secondary key, try that
+        if self._secondary_key and self._try_key(self._secondary_key):
+            self._initialized = True
+            logger.info("Using secondary key")
+            return
+            
+        # If we get here, no keys worked
+        raise YouTubeQuotaExceededError(
+            "YouTube API quota exceeded. Try again tomorrow or use a different API key."
+        )
+
+    def _try_key(self, key: str) -> bool:
+        """Try using an API key and return True if successful"""
+        if key in self._tried_keys:
+            return False
+        
+        self._tried_keys.add(key)
+        try:
+            logger.info(f"Testing API key...")
+            self._youtube = build('youtube', 'v3', developerKey=key)
+            test_request = self._youtube.search().list(
+                part="id",  # Minimum required field
+                maxResults=1,  # Just need one result
+                q="test"  # Simple search term
+            )
+            test_request.execute()
+            self._current_key = key
+            return True
+        
+        except HttpError as e:
+            if e.status_code == 403 and "quota" in str(e).lower():
+                logger.info("API key out of quota")
+                return False
+            raise
 
     def _handle_api_error(self, error: HttpError, operation: str) -> None:
         """Centralized API error handling with detailed logging"""
@@ -113,12 +162,28 @@ class YouTubeAPIClient:
         except HttpError as e:
             self._handle_api_error(e, f"listing videos for channel {channel_id}")
 
-    def execute_api_request(self, request) -> Dict[str, Any]:
-        """Execute a YouTube API request with error handling"""
+    def execute_api_request(self, request):
+        """Execute a YouTube API request with automatic key rotation on quota errors"""
         try:
             return request.execute()
         except HttpError as e:
+            if e.status_code == 403 and "quota" in str(e).lower():
+                # Try secondary key if available and not already tried
+                if self._secondary_key and self._secondary_key not in self._tried_keys:
+                    logger.info("Primary key out of quota, trying secondary key...")
+                    if self._try_key(self._secondary_key):
+                        # Rebuild request with new key
+                        request = self._rebuild_request(request)
+                        return request.execute()
             self._handle_api_error(e, "executing API request")
+
+    def _rebuild_request(self, old_request):
+        """Rebuild a request with the current API key"""
+        # Get the same API endpoint
+        api_name = old_request._methodId.split('.')[0]
+        method = getattr(self._youtube, api_name)()
+        # Copy the original request parameters
+        return method.list(**old_request._developerKey_params)
 
     def get_channel_id(self, username: str) -> str:
         """

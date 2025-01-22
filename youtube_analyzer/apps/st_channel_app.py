@@ -246,11 +246,6 @@ def main():
                             f"auto_analyze=true"
                         )
                         
-                        # Debug: Show the URL being generated
-                        with st.expander("Debug URL", expanded=False):
-                            st.write(analyze_url)
-                        
-                        # Remove the $ that was causing issues
                         st.markdown(f"[Analyze]({analyze_url})")
                     
                     st.divider()  # Add a visual separator between videos

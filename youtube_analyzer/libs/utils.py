@@ -137,21 +137,6 @@ def get_start_end_dates_for_period(period_type: str, number: int = 1, timezone: 
     
     return start_date, end_date
 
-def extract_video_id(video_input: str) -> str:
-    """Extract video ID from URL or return the ID if directly provided
-    
-    Args:
-        video_input: YouTube video URL or video ID
-        
-    Returns:
-        str: YouTube video ID
-    """
-    if "youtube.com/watch?v=" in video_input:
-        return video_input.split("v=")[-1].split("&")[0]
-    elif "youtu.be/" in video_input:
-        return video_input.split("youtu.be/")[-1].split("?")[0]
-    return video_input  # Assume it's already a video ID
-
 class DateFilter:
     """Date filtering utilities for YouTube API searches
     

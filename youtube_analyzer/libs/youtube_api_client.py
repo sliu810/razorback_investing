@@ -3,6 +3,7 @@ import logging
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from typing import Optional, List, Dict, Any
+import re
 
 logger = logging.getLogger(__name__)
 
@@ -157,3 +158,50 @@ class YouTubeAPIClient:
 
     def create_channels_request(self, **kwargs):
         return self._youtube.channels().list(**kwargs)
+
+    @staticmethod
+    def parse_video_id(video_input: Optional[str]) -> str:
+        """Extract YouTube video ID from various URL formats or return the ID if already in correct format.
+        
+        Args:
+            video_input: YouTube video URL or ID
+                Supported formats:
+                - Full URL: https://www.youtube.com/watch?v=VIDEO_ID
+                - Short URL: https://youtu.be/VIDEO_ID
+                - Embed URL: https://www.youtube.com/embed/VIDEO_ID
+                - Just the ID: VIDEO_ID (11 chars, alphanumeric with _ and -)
+        
+        Returns:
+            str: YouTube video ID
+        
+        Raises:
+            ValueError: If video ID cannot be extracted or doesn't match YouTube format
+        """
+        if not video_input:
+            raise ValueError("No video ID or URL provided")
+
+        # YouTube-specific ID validation (11 chars, alphanumeric with _ and -)
+        youtube_id_pattern = r'^[0-9A-Za-z_-]{11}$'
+        
+        # If it's already just the ID
+        if len(video_input) == 11 and re.match(youtube_id_pattern, video_input):
+            return video_input
+        
+        # YouTube-specific URL patterns
+        youtube_patterns = [
+            r'(?:v=|/)([0-9A-Za-z_-]{11}).*',  # Standard and embed URLs
+            r'youtu\.be/([0-9A-Za-z_-]{11})',   # Short URLs
+        ]
+        
+        for pattern in youtube_patterns:
+            match = re.search(pattern, video_input)
+            if match:
+                video_id = match.group(1)
+                # Double check the extracted ID matches YouTube format
+                if re.match(youtube_id_pattern, video_id):
+                    return video_id
+        
+        raise ValueError(
+            f"Could not extract valid YouTube video ID from: {video_input}. "
+            "YouTube IDs must be 11 characters long and contain only alphanumeric characters, underscores, and hyphens."
+        )

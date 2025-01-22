@@ -50,6 +50,7 @@ from typing import List, Optional, Dict
 from ..libs.video_client import YouTubeVideoClient
 from ..libs.utils import extract_video_id
 from ..libs.llm_processor import LLMConfig, Role, Task
+from ..libs.youtube_api_client import YouTubeAPIClient
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -113,7 +114,7 @@ def analyze_video(video: str,
         role_type: Optional role for analysis ('research_assistant' or 'financial_analyst')
     """
     try:
-        video_id = extract_video_id(video)
+        video_id = YouTubeAPIClient.parse_video_id(video)
         client = initialize_client(
             video_id=video_id,
             youtube_api_key=os.getenv("YOUTUBE_API_KEY"),

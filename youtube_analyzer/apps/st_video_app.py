@@ -22,6 +22,7 @@ from libs.llm_processor import Task, Role, LLMConfig
 from libs.utils import extract_video_id
 from tenacity import retry, stop_after_attempt, wait_exponential
 from youtube_transcript_api import YouTubeTranscriptApi
+from libs.youtube_api_client import YouTubeAPIClient
 
 # Configure logging
 logging.basicConfig(
@@ -149,18 +150,22 @@ def main():
 
     # Initialize client if we have a video URL
     if st.session_state.video_url:
-        video_id = extract_video_id(st.session_state.video_url)
-        if video_id and (st.session_state.client is None or 
-                        st.session_state.current_video_id != video_id):
-            logger.info("Initializing YouTubeVideoClient")
-            st.session_state.client = initialize_client(video_id)
-            st.session_state.current_video_id = video_id
-            logger.info("Client initialization complete")
-            
-            # Auto-analyze if specified in URL parameters
-            if 'auto_analyze' in query_params and query_params['auto_analyze'] == 'true':
-                logger.info("Auto-analyzing video...")
-                analyze_video()
+        try:
+            video_id = YouTubeAPIClient.parse_video_id(st.session_state.video_url)
+            if video_id and (st.session_state.client is None or 
+                           st.session_state.current_video_id != video_id):
+                logger.info("Initializing YouTubeVideoClient")
+                st.session_state.client = initialize_client(video_id)
+                st.session_state.current_video_id = video_id
+                logger.info("Client initialization complete")
+                
+                # Auto-analyze if specified in URL parameters
+                if 'auto_analyze' in query_params and query_params['auto_analyze'] == 'true':
+                    logger.info("Auto-analyzing video...")
+                    analyze_video()
+        except ValueError as e:
+            st.error(str(e))
+            return
 
     # Sidebar
     with st.sidebar:
@@ -236,21 +241,21 @@ def main():
     # Main panel
     if st.session_state.video_url:
         logger.info(f"Processing video URL: {st.session_state.video_url}")
-        video_id = extract_video_id(st.session_state.video_url)
-        logger.info(f"Extracted video ID: {video_id}")
-        
-        if not video_id:
-            st.error("""
-                ❌ Invalid YouTube URL. Please enter:
-                • A video URL (youtube.com/watch?v=...)
-                • A shortened URL (youtu.be/...)
-                • A video ID
-                
-                Channel URLs (@ChannelName) are not supported.
-            """)
-            return
-            
         try:
+            video_id = YouTubeAPIClient.parse_video_id(st.session_state.video_url)
+            logger.info(f"Extracted video ID: {video_id}")
+            
+            if not video_id:
+                st.error("""
+                    ❌ Invalid YouTube URL. Please enter:
+                    • A video URL (youtube.com/watch?v=...)
+                    • A shortened URL (youtu.be/...)
+                    • A video ID
+                    
+                    Channel URLs (@ChannelName) are not supported.
+                """)
+                return
+            
             # Create tabs first
             logger.info("Creating tabs")
             tab1, tab2 = st.tabs(["Analysis", "Chat"])
@@ -292,6 +297,17 @@ def main():
                         st.session_state.client.get_processors()
                     )
 
+        except ValueError as e:
+            st.error(f"""
+                ❌ Invalid YouTube URL: {str(e)}
+                Please enter:
+                • A video URL (youtube.com/watch?v=...)
+                • A shortened URL (youtu.be/...)
+                • A video ID
+                
+                Channel URLs (@ChannelName) are not supported.
+            """)
+            return
         except Exception as e:
             st.error("Unable to analyze this video - subtitles/closed captions are not available. Please try a different video or contact the video owner to enable captions.")
             logger.error(f"Error initializing client: {e}", exc_info=True)
@@ -300,21 +316,24 @@ def main():
 def analyze_video():
     """Helper function to analyze video with selected parameters"""
     if st.session_state.video_url:
-        video_id = extract_video_id(st.session_state.video_url)
-        if video_id:
-            # Initialize or reinitialize client if needed
-            if (st.session_state.client is None or 
-                st.session_state.current_video_id != video_id):
-                st.session_state.client = initialize_client(video_id)
-                st.session_state.current_video_id = video_id
-            
-            with st.spinner("Analyzing video..."):
-                results = st.session_state.client.analyze_video(
-                    processor_names=st.session_state.selected_models,
-                    task=st.session_state.selected_task,
-                    role=st.session_state.selected_role
-                )
-                st.session_state.current_results = results
+        try:
+            video_id = YouTubeAPIClient.parse_video_id(st.session_state.video_url)
+            if video_id:
+                # Initialize or reinitialize client if needed
+                if (st.session_state.client is None or 
+                    st.session_state.current_video_id != video_id):
+                    st.session_state.client = initialize_client(video_id)
+                    st.session_state.current_video_id = video_id
+                
+                with st.spinner("Analyzing video..."):
+                    results = st.session_state.client.analyze_video(
+                        processor_names=st.session_state.selected_models,
+                        task=st.session_state.selected_task,
+                        role=st.session_state.selected_role
+                    )
+                    st.session_state.current_results = results
+        except ValueError as e:
+            st.error(str(e))
 
 @retry(
     stop=stop_after_attempt(3),  # Try 3 times

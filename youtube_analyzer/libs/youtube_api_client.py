@@ -24,37 +24,37 @@ class YouTubeRateLimitError(Exception):
     pass
 
 class YouTubeAPIClient:
-    _instance = None
-    _initialized = False
-
-    def __new__(cls, *args, **kwargs):
-        if cls._instance is None:
-            cls._instance = super().__new__(cls)
-        return cls._instance
-
+    _working_key = None  # Class level variable
+    
     def __init__(self, api_key: Optional[str] = None):
         """Initialize YouTube API client with multiple API keys"""
-        # Skip if already initialized
-        if self._initialized:
+        # If we already have a working key, use it directly
+        if YouTubeAPIClient._working_key:
+            self._youtube = build('youtube', 'v3', developerKey=YouTubeAPIClient._working_key)
+            self._current_key = YouTubeAPIClient._working_key
             return
             
+        # Otherwise proceed with normal initialization
         self._primary_key = api_key or os.getenv('YOUTUBE_API_KEY')
         self._secondary_key = os.getenv('YOUTUBE_API_KEY_2')
+        logger.info(f"Primary key available: {bool(self._primary_key)}")
+        logger.info(f"Secondary key available: {bool(self._secondary_key)}")
+        logger.info(f"Keys are different: {self._primary_key != self._secondary_key}")
         self._current_key = None
-        self._tried_keys = set()  # Track which keys we've tried
+        self._tried_keys = set()
         
         if not self._primary_key:
             raise ValueError("No primary API key found. Provide an API key or set the YOUTUBE_API_KEY environment variable")
         
         # Try primary key first
+        logger.info("Trying primary key...")
         if self._try_key(self._primary_key):
-            self._initialized = True
             logger.info("Using primary key")
             return
             
         # If primary key fails and we have a secondary key, try that
+        logger.info(f"Primary key failed, have secondary key: {bool(self._secondary_key)}")
         if self._secondary_key and self._try_key(self._secondary_key):
-            self._initialized = True
             logger.info("Using secondary key")
             return
             
@@ -79,6 +79,7 @@ class YouTubeAPIClient:
             )
             test_request.execute()
             self._current_key = key
+            YouTubeAPIClient._working_key = key
             return True
         
         except HttpError as e:

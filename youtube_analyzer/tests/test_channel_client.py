@@ -9,11 +9,9 @@ from ..libs.utils import DateFilter
 @pytest.fixture
 def youtube_channel():
     """Fixture providing configured YouTube channel client"""
-    api_key = os.environ["YOUTUBE_API_KEY"]
     channel = ChannelClientFactory.create_channel(
         channel_type="youtube",
         channel_id="UCSHZKyawb77ixDdsGog4iWA",  # lex
-        youtube_api_key=api_key
     )
     return channel
 
@@ -81,7 +79,7 @@ def _print_video_details(channel, video_ids):
     print("\nVideo Details:")
     print("-" * 50)
     for video_id in video_ids[:5]:  # Show first 5 videos
-        video = channel.get_video_client(video_id)
+        video = channel.create_or_get_video_client(video_id)
         print(f"Title: {video.title}")
         print(f"Published: {video.published_at}")
         print(f"URL: {video.url}")

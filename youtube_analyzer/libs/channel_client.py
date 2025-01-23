@@ -43,12 +43,16 @@ class BaseChannelClient:
         published_before: Optional[str] = None,
         query: Optional[str] = None
     ) -> List[str]:
-        """Fetch and update video IDs with optional date filters and search query
+        """Fetch and update video IDs with optional date filters and search query.
+        Videos are returned in reverse chronological order (newest first).
         
         Args:
             published_after: Optional RFC 3339 formatted date (e.g., '2024-01-01T00:00:00Z')
             published_before: Optional RFC 3339 formatted date (e.g., '2024-01-01T00:00:00Z')
             query: Optional search query string to filter videos
+            
+        Returns:
+            List[str]: List of video IDs in reverse chronological order (newest first)
             
         Examples:
             # Get all videos

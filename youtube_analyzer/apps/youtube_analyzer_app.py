@@ -103,7 +103,6 @@ def initialize_video_client(video_id_or_url: str) -> YouTubeVideoClient:
 
     client = YouTubeVideoClient(
         video_id=video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
 
     # Add LLM processors

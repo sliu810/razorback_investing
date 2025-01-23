@@ -60,14 +60,20 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 def initialize_client(video_id: str,
-                     youtube_api_key: str,
+                     youtube_api_key: Optional[str] = None,
                      anthropic_api_key: Optional[str] = None,
                      openai_api_key: Optional[str] = None) -> Optional[YouTubeVideoClient]:
-    """Initialize YouTubeVideoClient with provided API keys"""
+    """Initialize YouTubeVideoClient with provided API keys
+    
+    Args:
+        video_id: YouTube video ID to analyze
+        youtube_api_key: Optional YouTube Data API key (defaults to env var)
+        anthropic_api_key: Optional Anthropic API key for Claude models
+        openai_api_key: Optional OpenAI API key for GPT models
+    """
     try:
         client = YouTubeVideoClient(
             video_id=video_id,
-            youtube_api_key=youtube_api_key
         )
         
         # Add Claude processor if API key available
@@ -117,7 +123,6 @@ def analyze_video(video: str,
         video_id = YouTubeAPIClient.parse_video_id(video)
         client = initialize_client(
             video_id=video_id,
-            youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
             anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
             openai_api_key=os.getenv("OPENAI_API_KEY")
         )
@@ -159,7 +164,6 @@ def chat_mode(video: str, model: str):
     video_id = extract_video_id(video)
     client = initialize_client(
         video_id=video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY"),
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
         openai_api_key=os.getenv("OPENAI_API_KEY")
     )

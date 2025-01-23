@@ -54,7 +54,7 @@ def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None):
         else:
             date_params = {}
             
-        # Update videos with date filtering
+        # Update videos with date filtering (already sorted by date, newest first)
         new_videos = client.update_video_ids(
             published_after=date_params.get('publishedAfter'),
             published_before=date_params.get('publishedBefore')
@@ -63,23 +63,11 @@ def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None):
         print(f"\nVideos from channel: {client.channel_metadata.get('title', channel_name)}")
         print("=" * 50)
         
-        # Sort videos by published date
-        video_data = []
+        # Print videos in order returned by API (already newest first)
         for video_id in new_videos:
             vclient = client.create_or_get_video_client(video_id)
-            video_data.append({
-                'date': vclient.published_at,
-                'title': vclient.title,
-                'url': f"https://youtube.com/watch?v={video_id}"
-            })
-        
-        # Sort by date, newest first
-        video_data.sort(key=lambda x: x['date'], reverse=True)
-        
-        # Print formatted list
-        for video in video_data:
-            print(f"{video['date'].strftime('%Y-%m-%d')} - {video['title']}")
-            print(f"{video['url']}")
+            print(f"{vclient.published_at.strftime('%Y-%m-%d')} - {vclient.title}")
+            print(f"https://youtube.com/watch?v={video_id}")
             print()
             
     except Exception as e:

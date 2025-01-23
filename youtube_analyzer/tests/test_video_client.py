@@ -38,7 +38,6 @@ def youtube_client(test_video_id, claude_config, gpt_config):
     """Fixture providing YouTubeVideoClient instance with all API keys"""
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     
     # Add Claude processor
@@ -60,7 +59,6 @@ def claude_only_client(test_video_id, claude_config):
     """Fixture providing YouTubeVideoClient instance with only Claude"""
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     
     try:
@@ -75,7 +73,6 @@ def gpt4_only_client(test_video_id, gpt_config):
     """Fixture providing YouTubeVideoClient instance with only GPT-4"""
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     
     try:
@@ -130,7 +127,6 @@ def test_client_initialization(test_video_id):
     # Initialize client
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     
     # Test with all API keys
@@ -160,7 +156,6 @@ def test_client_initialization(test_video_id):
     # Test with only Claude
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     try:
         claude_config = LLMConfig(
@@ -177,7 +172,6 @@ def test_client_initialization(test_video_id):
     # Test with only GPT-4
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     try:
         gpt_config = LLMConfig(
@@ -194,7 +188,6 @@ def test_client_initialization(test_video_id):
     # Test with no LLM API keys
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     assert len(client.get_processors()) == 0
 
@@ -253,7 +246,6 @@ def test_processor_initialization(test_video_id):
     """Test adding processors to YouTubeVideoClient"""
     client = YouTubeVideoClient(
         video_id=test_video_id,
-        youtube_api_key=os.getenv("YOUTUBE_API_KEY")
     )
     
     # Test adding Claude processor

@@ -63,13 +63,24 @@ def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None):
         print(f"\nVideos from channel: {client.channel_metadata.get('title', channel_name)}")
         print("=" * 50)
         
+        # Sort videos by published date
+        video_data = []
         for video_id in new_videos:
             vclient = client.create_or_get_video_client(video_id)
-            print(f"\nTitle: {vclient.title}")
-            print(f"URL: https://youtube.com/watch?v={video_id}")
-            if vclient.published_at:
-                print(f"Published: {vclient.published_at.strftime('%Y-%m-%d')}")
-            print("-" * 50)
+            video_data.append({
+                'date': vclient.published_at,
+                'title': vclient.title,
+                'url': f"https://youtube.com/watch?v={video_id}"
+            })
+        
+        # Sort by date, newest first
+        video_data.sort(key=lambda x: x['date'], reverse=True)
+        
+        # Print formatted list
+        for video in video_data:
+            print(f"{video['date'].strftime('%Y-%m-%d')} - {video['title']}")
+            print(f"{video['url']}")
+            print()
             
     except Exception as e:
         logger.error(f"Error listing channel videos: {str(e)}")

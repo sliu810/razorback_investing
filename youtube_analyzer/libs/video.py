@@ -19,10 +19,22 @@ class Video:
     RETRY_MIN_WAIT = 4    # Minimum wait time between retries in seconds
     RETRY_MAX_WAIT = 10   # Maximum wait time between retries in seconds
     
-    def __init__(self, video_id: str, transcript_language: str = 'en', timezone: str = 'America/Chicago'):
+    def __init__(self, 
+                 video_id: str, 
+                 youtube_api_key: str = None,  # Make API key optional
+                 transcript_language: str = 'en', 
+                 timezone: str = 'America/Chicago'):
+        """Initialize Video object
+        
+        Args:
+            video_id: YouTube video ID
+            youtube_api_key: Optional YouTube Data API key
+            transcript_language: Language code for transcript
+            timezone: Timezone string
+        """
         self.video_id: str = video_id
         self.url: str = f"https://www.youtube.com/watch?v={video_id}"
-        self.youtube_api_client: YouTubeAPIClient = YouTubeAPIClient()
+        self.youtube_api_client = YouTubeAPIClient(api_key=youtube_api_key)  # Create client with optional key
         self._transcript_language = str(transcript_language)
         self.timezone = pytz.timezone(timezone)
         self.title: Optional[str] = None

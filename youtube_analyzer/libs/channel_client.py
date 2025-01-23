@@ -18,6 +18,7 @@ class BaseChannelClient:
     def __init__(self, name: str, youtube_api_key: str = None, timezone: str = 'America/Chicago'):
         self.name = name
         self.timezone = pytz.timezone(timezone)
+        self.youtube_api_key = youtube_api_key  # Store the API key
         
         # Core state
         self.channel_metadata: Dict = {}
@@ -105,18 +106,11 @@ class BaseChannelClient:
         return new_video_ids
 
     def create_or_get_video_client(self, video_id: str) -> YouTubeVideoClient:
-        """Get existing or create new video client for specific video
-        
-        Args:
-            video_id: YouTube video ID
-            
-        Returns:
-            YouTubeVideoClient: Configured video client with channel's API key and processors
-        """
+        """Get existing or create new video client for specific video"""
         if video_id not in self._video_clients:
             client = YouTubeVideoClient(
                 video_id=video_id,
-                youtube_api_key=self.youtube_api_key
+                youtube_api_key=self.youtube_api_key  # Pass the stored API key
             )
             
             # Add any channel-level processors

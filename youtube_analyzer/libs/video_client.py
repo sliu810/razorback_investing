@@ -79,28 +79,29 @@ class YouTubeVideoClient:
     
     def __init__(self, 
                  video_id: str,
-                 youtube_api_key: str):
+                 youtube_api_key: str = None):
         """Initialize YouTube video client
         
         Args:
             video_id: YouTube video ID to analyze
-            youtube_api_key: YouTube Data API key
+            youtube_api_key: Optional YouTube Data API key
         """
-        self._api_client = YouTubeAPIClient(youtube_api_key)
+        self.youtube_api_client = YouTubeAPIClient(api_key=youtube_api_key)
         self._processors: Dict[str, LLMProcessor] = {}
         self.analysis_results: List[AnalysisResult] = []
         self._video: Optional[Video] = None
         
-        self._initialize_video(video_id)
+        self._initialize_video(video_id, youtube_api_key)
 
-    def _initialize_video(self, video_id: str) -> None:
+    def _initialize_video(self, video_id: str, youtube_api_key: str = None) -> None:
         """Initialize video object and fetch its data
         
         Args:
             video_id: YouTube video ID
+            youtube_api_key: Optional YouTube Data API key
         """
         try:
-            self._video = Video(video_id, self._api_client)
+            self._video = Video(video_id=video_id, youtube_api_key=youtube_api_key)
             self._video.get_video_metadata_and_transcript()
             logger.info(f"Initialized video: {video_id}")
         except Exception as e:

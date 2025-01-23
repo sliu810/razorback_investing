@@ -11,6 +11,8 @@ from typing import Optional
 
 from ..libs.channel_client import ChannelClientFactory
 from ..libs.utils import DateFilter
+from ..libs.youtube_api_client import YouTubeAPIClient
+from ..libs.channel_client import YouTubeChannelClient
 
 # Configure logging
 logging.basicConfig(
@@ -19,47 +21,58 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+# Add after imports
+PRESET_CHANNELS = {
+    "Lex Fridman": "@lexfridman",
+    "Joe Rogan": "@joerogan",
+    "CNBC": "@CNBCtelevision"
+}
 
-def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None) -> None:
-    """
-    List videos from a YouTube channel with optional date filtering
-
-    Args:
-        channel_name: Name of the YouTube channel (e.g., @lexfridman)
-        last_n_days: Number of days to look back (None for all videos)
-    """
+def initialize_channel_client(channel_name: str):
+    """Initialize YouTube channel client"""
     try:
-        # Initialize date filter if last_n_days is specified
-        date_filter = None
-        if last_n_days is not None:
-            end_date = datetime.now()
-            start_date = end_date - timedelta(days=last_n_days)
-            date_filter = DateFilter(start_date=start_date, end_date=end_date)
-            logger.info(f"Listing videos from {start_date.date()} to {end_date.date()}")
+        api_client = YouTubeAPIClient()
+        channel_id = api_client.get_channel_id(channel_name)
         
-        # Create channel URL from name
-        channel_url = f"https://youtube.com/{channel_name}"
+        return YouTubeChannelClient(channel_id=channel_id)
         
-        # Create channel client
-        client = ChannelClientFactory.create_client(
-            channel_url=channel_url,
-            youtube_api_key=os.getenv("YOUTUBE_API_KEY")
-        )
-
-        # Get videos
-        videos = client.get_videos(date_filter=date_filter)
-
-        # Print results
-        print(f"\nVideos from channel: {client.channel_name}")
-        print("=" * 50)
-        for video in videos:
-            print(f"\nTitle: {video.title}")
-            print(f"URL: https://youtube.com/watch?v={video.video_id}")
-            print(f"Published: {video.published_at.strftime('%Y-%m-%d')}")
-            print("-" * 50)
-
     except Exception as e:
-        logger.error(f"Error listing channel videos: {e}", exc_info=True)
+        logger.error(f"Error initializing channel client: {str(e)}")
+        raise
+
+def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None):
+    """List videos from a channel with optional date filtering"""
+    try:
+        client = initialize_channel_client(channel_name)
+        date_filter = DateFilter()
+        
+        # Get date parameters based on filter type
+        if last_n_days == 1:  # today
+            date_params = date_filter.today()
+        elif last_n_days:
+            date_params = date_filter.from_days_ago(last_n_days)
+        else:
+            date_params = {}
+            
+        # Update videos with date filtering
+        new_videos = client.update_video_ids(
+            published_after=date_params.get('publishedAfter'),
+            published_before=date_params.get('publishedBefore')
+        )
+        
+        print(f"\nVideos from channel: {client.channel_metadata.get('title', channel_name)}")
+        print("=" * 50)
+        
+        for video_id in new_videos:
+            vclient = client.create_or_get_video_client(video_id)
+            print(f"\nTitle: {vclient.title}")
+            print(f"URL: https://youtube.com/watch?v={video_id}")
+            if vclient.published_at:
+                print(f"Published: {vclient.published_at.strftime('%Y-%m-%d')}")
+            print("-" * 50)
+            
+    except Exception as e:
+        logger.error(f"Error listing channel videos: {str(e)}")
         raise
 
 def main():
@@ -69,8 +82,7 @@ def main():
     parser = argparse.ArgumentParser(description="List YouTube channel videos")
     parser.add_argument(
         "-c", "--channel",
-        required=True,
-        help="YouTube channel name (e.g., @lexfridman)"
+        help="YouTube channel name (e.g., @lexfridman) or preset name (Lex Fridman, Joe Rogan, CNBC)"
     )
     parser.add_argument(
         "--days",
@@ -78,12 +90,29 @@ def main():
         help="Number of days to look back (default: list all videos)",
         default=None
     )
+    parser.add_argument(
+        "--today",
+        action="store_true",
+        help="List only today's videos"
+    )
 
     args = parser.parse_args()
 
+    # Handle preset channels
+    channel_name = args.channel
+    if channel_name in PRESET_CHANNELS:
+        channel_name = PRESET_CHANNELS[channel_name]
+
+    # Handle date filtering
+    last_n_days = None
+    if args.today:
+        last_n_days = 1
+    elif args.days:
+        last_n_days = args.days
+
     list_channel_videos(
-        channel_name=args.channel,
-        last_n_days=args.days
+        channel_name=channel_name,
+        last_n_days=last_n_days
     )
 
 if __name__ == "__main__":

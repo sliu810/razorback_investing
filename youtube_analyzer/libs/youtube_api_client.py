@@ -37,9 +37,10 @@ class YouTubeAPIClient:
         # Otherwise proceed with normal initialization
         self._primary_key = api_key or os.getenv('YOUTUBE_API_KEY')
         self._secondary_key = os.getenv('YOUTUBE_API_KEY_2')
+        self._tertiary_key = os.getenv('YOUTUBE_API_KEY_3')  # Add tertiary key
         logger.info(f"Primary key available: {bool(self._primary_key)}")
         logger.info(f"Secondary key available: {bool(self._secondary_key)}")
-        logger.info(f"Keys are different: {self._primary_key != self._secondary_key}")
+        logger.info(f"Tertiary key available: {bool(self._tertiary_key)}")  # Add log
         self._current_key = None
         self._tried_keys = set()
         
@@ -56,6 +57,12 @@ class YouTubeAPIClient:
         logger.info(f"Primary key failed, have secondary key: {bool(self._secondary_key)}")
         if self._secondary_key and self._try_key(self._secondary_key):
             logger.info("Using secondary key")
+            return
+            
+        # If secondary key fails and we have a tertiary key, try that
+        logger.info(f"Secondary key failed, have tertiary key: {bool(self._tertiary_key)}")
+        if self._tertiary_key and self._try_key(self._tertiary_key):
+            logger.info("Using tertiary key")
             return
             
         # If we get here, no keys worked
@@ -170,14 +177,6 @@ class YouTubeAPIClient:
         try:
             return request.execute()
         except HttpError as e:
-            if e.status_code == 403 and "quota" in str(e).lower():
-                # Try secondary key if available and not already tried
-                if self._secondary_key and self._secondary_key not in self._tried_keys:
-                    logger.info("Primary key out of quota, trying secondary key...")
-                    if self._try_key(self._secondary_key):
-                        # Rebuild request with new key
-                        request = self._rebuild_request(request)
-                        return request.execute()
             self._handle_api_error(e, "executing API request")
 
     def _rebuild_request(self, old_request):

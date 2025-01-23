@@ -1,7 +1,6 @@
 from typing import Dict, List, Optional
 from datetime import datetime, timedelta
 import pytz
-from googleapiclient.discovery import build
 import logging
 from .utils import DateFilter
 from .llm_processor import LLMConfig, Task
@@ -191,10 +190,9 @@ class BaseChannelClient:
 class YouTubeChannelClient(BaseChannelClient):
     """Client for managing YouTube channel analysis"""
     
-    def __init__(self, channel_id: str, youtube_api_key: str, timezone: str = 'America/Chicago'):
-        super().__init__(name=channel_id, timezone=timezone)
+    def __init__(self, channel_id: str, youtube_api_key: str = None, timezone: str = 'America/Chicago'):
+        super().__init__(name=channel_id, youtube_api_key=youtube_api_key, timezone=timezone)
         self.channel_id = channel_id
-        self.youtube_api_key = youtube_api_key
         self._fetch_channel_metadata()
 
     def _fetch_channel_metadata(self) -> None:
@@ -296,14 +294,12 @@ class ChannelClientFactory:
         if channel_type == "youtube":
             return YouTubeChannelClient(
                 channel_id=kwargs['channel_id'],
-                youtube_api_key=kwargs['youtube_api_key'],
                 timezone=kwargs.get('timezone', 'America/Chicago')
             )
         elif channel_type == "virtual":
             return VirtualChannelClient(
                 name=kwargs['name'],
                 video_ids=kwargs['video_ids'],
-                youtube_api_key=kwargs['youtube_api_key'],
                 timezone=kwargs.get('timezone', 'America/Chicago')
             )
         else:

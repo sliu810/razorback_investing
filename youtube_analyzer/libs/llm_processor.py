@@ -136,11 +136,47 @@ class Task(BaseModel):
         )
     
     @classmethod
+    def reformat(cls) -> 'Task':
+        return cls(
+            name="reformat_transcript",
+            description="Reformat transcript into clear, readable text while preserving content",
+            prompt_template="""Reformat this transcript into clear, readable text. Preserve all original content and meaning.
+
+            Guidelines:
+            1. Fix sentence structure and punctuation
+            2. Add proper paragraphs and spacing
+            3. Keep all original quotes, numbers, and specific details
+            4. Maintain chronological order
+            5. Remove filler words and speech artifacts
+            6. Preserve speaker names/identifiers if present
+
+            Format:
+            [Speaker name (if available)]
+            Clear, properly formatted paragraph...
+
+            [Next speaker or topic break]
+            Next paragraph with proper punctuation...
+
+            Content:
+            {text}"""
+        )
+    
+    @classmethod
     def custom(cls, prompt: str, name: str = "custom", description: str = "Custom task") -> 'Task':
+        """Create a custom task with consistent formatting
+        
+        Args:
+            prompt: The custom task instruction
+            name: Task name (default: "custom")
+            description: Task description (default: "Custom task")
+            
+        Returns:
+            Task with formatted prompt template including content placeholder
+        """
         return cls(
             name=name,
             description=description,
-            prompt_template=f"{prompt}\n\n{{text}}"
+            prompt_template=f"{prompt}\n\nContent: {{text}}"  # Changed to match summary format
         )
 
 class LLMProcessor:

@@ -25,7 +25,8 @@ logger = logging.getLogger(__name__)
 PRESET_CHANNELS = {
     "Lex Fridman": "@lexfridman",
     "Joe Rogan": "@joerogan",
-    "CNBC": "@CNBCtelevision"
+    "CNBC": "@CNBCtelevision",
+    "AI Explained": "@aiexplained-official"
 }
 
 def initialize_channel_client(channel_name: str):
@@ -78,7 +79,15 @@ def main():
     """Main entry point with command line argument parsing"""
     import argparse
 
-    parser = argparse.ArgumentParser(description="List YouTube channel videos")
+    parser = argparse.ArgumentParser(
+        description="List YouTube channel videos",
+        epilog="""
+Examples:
+  python -m youtube_analyzer.apps.channel -c "@CNBCtelevision" --today
+  python -m youtube_analyzer.apps.channel -c "CNBC" --days 7
+  python -m youtube_analyzer.apps.channel -c "@lexfridman"  # lists all videos
+        """
+    )
     parser.add_argument(
         "-c", "--channel",
         help="YouTube channel name (e.g., @lexfridman) or preset name (Lex Fridman, Joe Rogan, CNBC)"
@@ -86,13 +95,13 @@ def main():
     parser.add_argument(
         "--days",
         type=int,
-        help="Number of days to look back (default: list all videos)",
+        help="Number of days to look back (note: cannot be used with --today)",
         default=None
     )
     parser.add_argument(
         "--today",
         action="store_true",
-        help="List only today's videos"
+        help="List only today's videos (note: cannot be used with --days)"
     )
 
     args = parser.parse_args()

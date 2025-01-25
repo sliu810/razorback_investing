@@ -45,7 +45,7 @@ AVAILABLE_MODELS = {
     "gpt_4o": {
         "provider": "openai",
         "model_name": "gpt-4o",
-        "display_name": "GPT-4 Turbo"
+        "display_name": "GPT-4o"
     }
 }
 
@@ -53,7 +53,8 @@ AVAILABLE_MODELS = {
 PRESET_CHANNELS = {
     "Lex Fridman": "@lexfridman",
     "Joe Rogan": "@joerogan",
-    "CNBC": "@CNBCtelevision"
+    "CNBC": "@CNBCtelevision",
+    "AI Explained": "@aiexplained-official"
 }
 
 
@@ -402,28 +403,28 @@ def render_sidebar_analysis_settings():
     else:
         st.session_state.selected_role = Role.financial_analyst()
 
-    # 3. Tasks (unchanged)
+    # 3. Tasks (show only existing tasks)
     st.sidebar.subheader("Task")
-    task_options = ["Summarize", "Outline", "Custom"]
+    task_options = ["Summarize", "Market Analysis", "Reformat", "Custom"]
     chosen_task = st.sidebar.selectbox(
         "Choose Task",
         task_options,
-        index=0  # Always default to Summarize
+        index=0  # Default to Summarize
     )
 
     if chosen_task == "Summarize":
         st.session_state.selected_task = Task.summarize()
-    elif chosen_task == "Outline":
-        st.session_state.selected_task = Task(
-            name="outline",
-            prompt="Generate a bullet-point outline of the video's content."
-        )
+    elif chosen_task == "Market Analysis":
+        st.session_state.selected_task = Task.market_analysis()
+    elif chosen_task == "Reformat":
+        st.session_state.selected_task = Task.reformat()
     else:  # Custom
         custom_task_prompt = st.sidebar.text_area("Enter custom task instructions:")
         if custom_task_prompt.strip():
-            st.session_state.selected_task = Task(
+            st.session_state.selected_task = Task.custom(
+                prompt=custom_task_prompt,
                 name="custom",
-                prompt=custom_task_prompt
+                description="Custom analysis task"
             )
         else:
             st.session_state.selected_task = Task.summarize()
@@ -490,25 +491,6 @@ def render_sidebar():
 
     # Shared analysis settings for both tabs
     render_sidebar_analysis_settings()
-
-    # Video-specific analyze button
-    if current_tab == "Video" and st.session_state.get("selected_video_url"):
-        if st.sidebar.button("Analyze Video"):
-            try:
-                vclient = initialize_video_client(st.session_state.selected_video_url)
-                with st.spinner("Analyzing..."):
-                    results = vclient.analyze_video(
-                        processor_names=st.session_state.selected_models,
-                        task=st.session_state.selected_task,
-                        role=st.session_state.selected_role
-                    )
-                st.session_state.vclient = vclient
-                st.session_state.selected_video_id = vclient.video_id
-                st.session_state.current_results = results
-                st.session_state.show_video = True
-            except Exception as e:
-                st.error(f"Error analyzing video: {str(e)}")
-                logger.error(e, exc_info=True)
 
 # ------------------------------------------------------------------------------
 # Main

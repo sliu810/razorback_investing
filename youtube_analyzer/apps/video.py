@@ -2,37 +2,37 @@
 YouTube Video Analysis Tool
 
 This script provides the core functionality for analyzing YouTube videos using various LLM models.
-It can be used as a command-line tool or imported by other modules (like streamlit_app.py).
+It can be used as a command-line tool or imported by other modules.
 
 Required Environment Variables:
-    - YOUTUBE_API_KEY: API key for YouTube Data API
+    - YOUTUBE_API_KEY: API key for YouTube Data API (optional, will use default if not provided)
     - ANTHROPIC_API_KEY: API key for Claude models (optional)
     - OPENAI_API_KEY: API key for GPT models (optional)
 
 Example Commands:
     # Basic analysis with default settings (will use all available models)
-    python main.py --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
+    python -m youtube_analyzer.apps.video --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
     
     # Analysis with specific model
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet
     
     # Analysis with multiple models
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
     
     # Custom analysis with specific prompt
-    python main.py --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
     
     # Analysis with research assistant role
-    python main.py --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
     
     # Analysis followed by chat mode with Claude
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet --chat
     
     # Direct to chat mode with specific model
-    python main.py --video WQ35G6XI8Uw --chat --chat-model claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
     
     # Financial analysis with GPT-4
-    python main.py --video WQ35G6XI8Uw --models gpt_4o --role financial_analyst
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models gpt_4o --role financial_analyst
     
 Note: 
     - When using URLs, wrap them in quotes to handle special characters
@@ -48,9 +48,8 @@ import argparse
 from typing import List, Optional, Dict
 
 from ..libs.video_client import YouTubeVideoClient
-from ..libs.utils import extract_video_id
-from ..libs.llm_processor import LLMConfig, Role, Task
 from ..libs.youtube_api_client import YouTubeAPIClient
+from ..libs.llm_processor import LLMConfig, Role, Task
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -161,7 +160,7 @@ def analyze_video(video: str,
 
 def chat_mode(video: str, model: str):
     """Interactive chat mode for discussing a video"""
-    video_id = extract_video_id(video)
+    video_id = YouTubeAPIClient.parse_video_id(video)
     client = initialize_client(
         video_id=video_id,
         anthropic_api_key=os.getenv("ANTHROPIC_API_KEY"),
@@ -225,25 +224,25 @@ def parse_args():
         description="YouTube Video Analysis Tool",
         epilog="""Examples:
     # Basic analysis with default settings
-    python main.py --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
+    python -m youtube_analyzer.apps.video --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
     
     # Analysis with specific model
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet
     
     # Analysis with multiple models
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
     
     # Custom analysis with specific prompt
-    python main.py --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
     
     # Analysis with research assistant role
-    python main.py --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
     
     # Analysis followed by chat mode with Claude
-    python main.py --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet --chat
     
     # Direct to chat mode with specific model (skips analysis)
-    python main.py --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
     """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )

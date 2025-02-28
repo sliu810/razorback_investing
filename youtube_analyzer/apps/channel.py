@@ -41,39 +41,44 @@ def initialize_channel_client(channel_name: str):
         logger.error(f"Error initializing channel client: {str(e)}")
         raise
 
-def list_channel_videos(channel_name: str, last_n_days: Optional[int] = None):
-    """List videos from a channel with optional date filtering"""
+def list_channel_videos(channel_handle: str, days: Optional[int] = None, today: bool = False):
+    """List videos from specified channel with optional date filtering"""
     try:
-        client = initialize_channel_client(channel_name)
-        date_filter = DateFilter()
+        # Suppress googleapiclient.discovery_cache logs
+        logging.getLogger('googleapiclient.discovery_cache').setLevel(logging.WARNING)
+        # Suppress youtube_analyzer.libs logs
+        logging.getLogger('youtube_analyzer.libs').setLevel(logging.WARNING)
         
-        # Get date parameters based on filter type
-        if last_n_days == 1:  # today
+        client = initialize_channel_client(channel_handle)
+        
+        # Configure date filter
+        date_filter = DateFilter()
+        if today:
             date_params = date_filter.today()
-        elif last_n_days:
-            date_params = date_filter.from_days_ago(last_n_days)
+        elif days:
+            date_params = date_filter.from_days_ago(days)
         else:
             date_params = {}
             
-        # Update videos with date filtering (already sorted by date, newest first)
-        new_videos = client.update_video_ids(
+        # Get videos
+        video_ids = client.update_video_ids(
             published_after=date_params.get('publishedAfter'),
             published_before=date_params.get('publishedBefore')
         )
         
-        print(f"\nVideos from channel: {client.channel_metadata.get('title', channel_name)}")
+        # Clean display format
+        print(f"\nVideos from channel: {channel_handle}")
         print("=" * 50)
         
-        # Print videos in order returned by API (already newest first)
-        for video_id in new_videos:
-            vclient = client.create_or_get_video_client(video_id)
-            print(f"{vclient.published_at.strftime('%Y-%m-%d')} - {vclient.title}")
-            print(f"https://youtube.com/watch?v={video_id}")
-            print()
+        for vid_id in video_ids:
+            video = client.create_or_get_video_client(vid_id)
+            print(f"{video.published_at.strftime('%Y-%m-%d')} | {video.title}")
+            print(f"https://youtube.com/watch?v={vid_id}")
+            print()  # Empty line between videos
             
     except Exception as e:
-        logger.error(f"Error listing channel videos: {str(e)}")
-        raise
+        logger.error(f"Error listing videos: {e}")
+        return None
 
 def main():
     """Main entry point with command line argument parsing"""
@@ -90,7 +95,8 @@ Examples:
     )
     parser.add_argument(
         "-c", "--channel",
-        help="YouTube channel name (e.g., @lexfridman) or preset name (Lex Fridman, Joe Rogan, CNBC)"
+        help="YouTube channel name (e.g., @lexfridman) or preset name (Lex Fridman, Joe Rogan, CNBC)",
+        required=True
     )
     parser.add_argument(
         "--days",
@@ -105,22 +111,17 @@ Examples:
     )
 
     args = parser.parse_args()
-
-    # Handle preset channels
-    channel_name = args.channel
-    if channel_name in PRESET_CHANNELS:
-        channel_name = PRESET_CHANNELS[channel_name]
-
-    # Handle date filtering
-    last_n_days = None
-    if args.today:
-        last_n_days = 1
-    elif args.days:
-        last_n_days = args.days
-
+    
+    if not args.channel:
+        parser.error("Channel name or handle is required")
+        
+    # Convert preset names to handles if needed
+    channel_handle = PRESET_CHANNELS.get(args.channel, args.channel)
+    
     list_channel_videos(
-        channel_name=channel_name,
-        last_n_days=last_n_days
+        channel_handle=channel_handle,
+        days=args.days,
+        today=args.today
     )
 
 if __name__ == "__main__":

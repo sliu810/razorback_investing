@@ -37,10 +37,10 @@ logger = logging.getLogger(__name__)
 
 # Define available models
 AVAILABLE_MODELS = {
-    "claude_35_sonnet": {
+    "claude_37_sonnet": {
         "provider": "anthropic",
-        "model_name": "claude-3-5-sonnet-20241022",
-        "display_name": "Claude 3.5 Sonnet"
+        "model_name": "claude-3-7-sonnet-20250219",
+        "display_name": "Claude 3.7 Sonnet"
     },
     "gpt_4o": {
         "provider": "openai",
@@ -77,10 +77,10 @@ def initialize_channel_client(channel_name: str):
     try:
         claude_config = LLMConfig(
             provider="anthropic",
-            model_name="claude-3-5-sonnet-20241022",
+            model_name="claude-3-7-sonnet-20250219",
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
-        channel_client.add_processor("claude_35_sonnet", claude_config)
+        channel_client.add_processor("claude_37_sonnet", claude_config)
     except Exception as e:
         logger.warning(f"Unable to add Claude to channel: {e}")
 
@@ -110,10 +110,10 @@ def initialize_video_client(video_id_or_url: str) -> YouTubeVideoClient:
     try:
         claude_config = LLMConfig(
             provider="anthropic",
-            model_name="claude-3-5-sonnet-20241022",
+            model_name="claude-3-7-sonnet-20250219",
             api_key=os.getenv("ANTHROPIC_API_KEY")
         )
-        client.add_processor("claude_35_sonnet", claude_config)
+        client.add_processor("claude_37_sonnet", claude_config)
     except Exception as e:
         logger.warning(f"Could not add Claude: {e}")
     
@@ -385,10 +385,10 @@ def render_sidebar_analysis_settings():
     st.sidebar.subheader("Models")
     st.session_state.selected_models = []
     
-    if st.sidebar.checkbox("Claude 3.5 Sonnet", value=True):
-        st.session_state.selected_models.append("claude_35_sonnet")
-    if st.sidebar.checkbox("GPT-4 Turbo", value=False):
-        st.session_state.selected_models.append("gpt_4o")
+    for model_key, model_info in AVAILABLE_MODELS.items():
+        if st.sidebar.checkbox(model_info["display_name"], 
+                             value=(model_key == "claude_37_sonnet")):  # Default to Claude 3.7
+            st.session_state.selected_models.append(model_key)
 
     # 2. Roles (dropdown like tasks, no custom)
     st.sidebar.subheader("Roles")

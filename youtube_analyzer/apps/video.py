@@ -80,10 +80,10 @@ def initialize_client(video_id: str,
             try:
                 claude_config = LLMConfig(
                     provider="anthropic",
-                    model_name="claude-3-5-sonnet-20241022",
+                    model_name="claude-3-7-sonnet-20250219",
                     api_key=anthropic_api_key
                 )
-                client.add_processor("claude_35_sonnet", claude_config)
+                client.add_processor("claude_37_sonnet", claude_config)
             except Exception as e:
                 logger.warning(f"Could not add Claude processor: {e}")
         

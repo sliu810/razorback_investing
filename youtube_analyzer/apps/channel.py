@@ -26,7 +26,8 @@ PRESET_CHANNELS = {
     "Lex Fridman": "@lexfridman",
     "Joe Rogan": "@joerogan",
     "CNBC": "@CNBCtelevision",
-    "AI Explained": "@aiexplained-official"
+    "AI Explained": "@aiexplained-official",
+    "Bloomberg Podcasts": "@BloombergPodcasts"
 }
 
 def initialize_channel_client(channel_name: str):
@@ -89,7 +90,7 @@ def main():
         epilog="""
 Examples:
   python -m youtube_analyzer.apps.channel -c "@CNBCtelevision" --today
-  python -m youtube_analyzer.apps.channel -c "CNBC" --days 7
+  python -m youtube_analyzer.apps.channel -c "BloombergPodcasts" --days 7
   python -m youtube_analyzer.apps.channel -c "@lexfridman"  # lists all videos
         """
     )

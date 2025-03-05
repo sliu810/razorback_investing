@@ -14,24 +14,24 @@ Example Commands:
     python -m youtube_analyzer.apps.video --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
     
     # Analysis with specific model
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet
     
     # Analysis with multiple models
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet gpt_4o
     
     # Custom analysis with specific prompt
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_37_sonnet
     
     # Analysis with research assistant role
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_37_sonnet
     
     # Analysis followed by chat mode with Claude
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet --chat
     
     # Direct to chat mode with specific model
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_37_sonnet
     
-    # Financial analysis with GPT-4
+    # Financial analysis with GPT-4o
     python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models gpt_4o --role financial_analyst
     
 Note: 
@@ -97,7 +97,7 @@ def initialize_client(video_id: str,
                 )
                 client.add_processor("gpt_4o", gpt_config)
             except Exception as e:
-                logger.warning(f"Could not add GPT-4 processor: {e}")
+                logger.warning(f"Could not add GPT processor: {e}")
         
         return client
     except Exception as e:
@@ -227,22 +227,22 @@ def parse_args():
     python -m youtube_analyzer.apps.video --video "https://www.youtube.com/watch?v=WQ35G6XI8Uw"
     
     # Analysis with specific model
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet
     
     # Analysis with multiple models
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet gpt_4o
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet gpt_4o
     
     # Custom analysis with specific prompt
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --task custom --prompt "List the main technical concepts discussed" --models claude_37_sonnet
     
     # Analysis with research assistant role
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --role research_assistant --models claude_37_sonnet
     
     # Analysis followed by chat mode with Claude
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_35_sonnet --chat
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --models claude_37_sonnet --chat
     
     # Direct to chat mode with specific model (skips analysis)
-    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_35_sonnet
+    python -m youtube_analyzer.apps.video --video WQ35G6XI8Uw --chat-only --chat-model claude_37_sonnet
     """,
         formatter_class=argparse.RawDescriptionHelpFormatter
     )

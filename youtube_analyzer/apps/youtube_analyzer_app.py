@@ -54,7 +54,8 @@ PRESET_CHANNELS = {
     "Lex Fridman": "@lexfridman",
     "Joe Rogan": "@joerogan",
     "CNBC": "@CNBCtelevision",
-    "AI Explained": "@aiexplained-official"
+    "AI Explained": "@aiexplained-official",
+    "Bloomberg Podcasts": "@BloombergPodcasts"
 }
 
 
@@ -175,11 +176,9 @@ def render_channel_tab():
                 # Video header with title and analyze button
                 col1, col2 = st.columns([6, 1])
                 with col1:
-                    published_date = (vid.published_at.strftime('%Y-%m-%d') 
-                                    if vid.published_at else "N/A")
+                    video_title = f"{vid.title} ({vid.published_at.strftime('%Y-%m-%d')}) ID: {vid.video_id}"
                     st.markdown(
-                        f"[**{vid.title}**](https://youtube.com/watch?v={vid.video_id}) "
-                        f"({published_date})"
+                        f"[**{video_title}**](https://youtube.com/watch?v={vid.video_id})"
                     )
                 
                 with col2:
